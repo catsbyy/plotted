@@ -13,6 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  icons: {
+    icon: "/plotted-icon.svg",
+    shortcut: "/plotted-icon.svg",
+    apple: "/plotted-icon.svg",
+  },
   title: "Plotted — Chess Game Art",
   description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
   metadataBase: new URL("https://plotted-eight.vercel.app"),
