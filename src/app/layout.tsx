@@ -13,8 +13,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Chess Art Generator",
-  description: "Generate poster-style artwork from PGN chess games.",
+  title: "Plotted — Chess Game Art",
+  description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
+  metadataBase: new URL("https://YOUR_DEPLOYED_URL.vercel.app"),
+  openGraph: {
+    title: "Plotted — Chess Game Art",
+    description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
+    url: "https://YOUR_DEPLOYED_URL.vercel.app",
+    siteName: "Plotted",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Plotted — chess game visualised as a neon poster",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Plotted — Chess Game Art",
+    description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
@@ -23,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

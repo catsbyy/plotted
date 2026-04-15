@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { drawChessArt, parsePgn, type ParsedGame } from "@/lib/chessArt";
+import { drawChessArt, parsePgn, type ArtStyle, type ParsedGame } from "@/lib/chessArt";
 
 export type ChessArtCanvasHandle = {
   downloadPng: () => void;
@@ -70,8 +70,8 @@ function deriveOpeningName(game: ParsedGame) {
   }
 }
 
-export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; size: number }>(function ChessArtCanvas(
-  { pgn, size },
+export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; size: number; style: ArtStyle }>(function ChessArtCanvas(
+  { pgn, size, style },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -83,8 +83,6 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
       return null;
     }
   }, [pgn]);
-
-  const displaySize = useMemo(() => Math.min(720, Math.max(320, Math.round(size / 2))), [size]);
 
   const render = () => {
     const canvas = canvasRef.current;
@@ -104,6 +102,7 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
 
     drawChessArt(canvas, parsed.moves, {
       size,
+      style,
       poster: {
         title: deriveTitle(parsed),
         subtitle,
@@ -122,10 +121,12 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
     if (!canvas) return;
     // Render a fresh frame at the requested resolution, then export via Blob
     // to avoid flaky behavior with large data URLs.
+    let fresh: ReturnType<typeof parsePgn>;
     try {
-      const fresh = parsePgn(pgn);
+      fresh = parsePgn(pgn);
       drawChessArt(canvas, fresh.moves, {
         size,
+        style,
         poster: {
           title: deriveTitle(fresh),
           subtitle: [
@@ -147,12 +148,18 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
       return;
     }
 
+    const whiteSlug = fresh.tags.White?.trim().toLowerCase().replace(/\s+/g, "-") ?? "white";
+    const blackSlug = fresh.tags.Black?.trim().toLowerCase().replace(/\s+/g, "-") ?? "black";
+    const year = (fresh.tags.Date ?? fresh.tags.UTCDate ?? "").slice(0, 4).replace("????", "") || null;
+    const parts = ["plotted", `${whiteSlug}-vs-${blackSlug}`, year, style].filter(Boolean);
+    const filename = `${parts.join("-")}.png`;
+
     canvas.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `chess-art-${size}x${size}.png`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -160,24 +167,32 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
     }, "image/png");
   };
 
-  useImperativeHandle(ref, () => ({ downloadPng }), [pgn, size]);
+  useImperativeHandle(ref, () => ({ downloadPng }), [pgn, size, style]);
 
   useEffect(() => {
     if (!parsed || parsed.moves.length === 0) return;
     render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pgn, size]);
+  }, [pgn, size, style]);
 
   return (
     <div className="relative">
-      <div className="absolute -inset-6 -z-10 rounded-[28px] bg-[radial-gradient(60%_60%_at_50%_20%,rgba(99,102,241,0.22),rgba(0,0,0,0))]" />
-      <div className="flex items-center justify-center rounded-2xl border border-white/10 bg-black/40 p-3 shadow-sm">
+      <div className="absolute -inset-10 -z-10 rounded-[36px] bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.28),rgba(0,0,0,0))] blur-xl" />
+      <div className="relative flex items-center justify-center rounded-2xl bg-black/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.55)]">
         <canvas
           ref={canvasRef}
           width={size}
           height={size}
-          style={{ width: displaySize, height: displaySize }}
+          style={{ width: "100%", height: "auto", maxWidth: 720 }}
           className="rounded-xl"
+        />
+        {/* Soft vignette to dissolve canvas edges into the background */}
+        <div
+          className="pointer-events-none absolute inset-3 rounded-xl"
+          style={{
+            background:
+              "radial-gradient(ellipse 88% 88% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%)",
+          }}
         />
       </div>
       <p className="mt-3 text-center text-xs text-zinc-500 dark:text-zinc-400">

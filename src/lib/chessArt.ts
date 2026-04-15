@@ -98,13 +98,67 @@ export type PosterMeta = {
   movesText?: string;
 };
 
+export type ArtStyle = "neon" | "ink" | "blueprint" | "watercolor";
+
 export type DrawOptions = {
   size: number;
   padding?: number;
+  style?: ArtStyle; // default "neon"
   poster?: PosterMeta;
 };
 
 type RGB = { r: number; g: number; b: number };
+
+type StyleTokens = {
+  // Background
+  bgBase: string;
+  bgGradientInner: string;
+  bgGradientOuter: string;
+  // Board
+  boardLight: string;
+  boardDark: string;
+  boardGrid: string;
+  boardBorder: string;
+  boardLabel: string;
+  // Move lines
+  compositeOperation: GlobalCompositeOperation;
+  whiteBase: RGB;
+  blackBase: RGB;
+  shadowBlurScale: number;
+  opacityRange: [number, number];
+  // Time gradient
+  gradientOpening: string;
+  gradientMiddle: string;
+  gradientEnd: string;
+  // Capture marker
+  captureFill: (progress: number) => string;
+  captureShadow: (progress: number) => string;
+  // Castle marker
+  castleColour: string;
+  castleShadow: string;
+  // Mate marker
+  mateColour: string;
+  mateShadow: string;
+  mateStroke: string;
+  // Poster text
+  titleColour: string;
+  subtitleColour: string;
+  chipBg: string;
+  chipBorder: string;
+  chipText: string;
+  footerPrimaryColour: string;
+  footerBodyColour: string;
+  posterBorderColour: string;
+  // Legend
+  legendBg: string;
+  legendBorder: string;
+  legendTitleColour: string;
+  legendText: string;
+  // Line rendering
+  lineWidthMultiplier: number;
+  knightBendBase: number;
+  boardOverlay: string;
+};
 
 function hexToRgb(hex: string): RGB {
   const h = hex.replace("#", "").trim();
@@ -125,16 +179,200 @@ function rgbToCss(rgb: RGB, alpha: number) {
   return `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
 }
 
-function getMoveGradientRgb(progress: number): RGB {
-  const opening = hexToRgb("#2563eb"); // blue-600
-  const middle = hexToRgb("#7c3aed"); // violet-600
-  const end = hexToRgb("#ef4444"); // red-500
-  const t = Math.min(1, Math.max(0, progress));
-  return t < 0.5 ? lerpRgb(opening, middle, t / 0.5) : lerpRgb(middle, end, (t - 0.5) / 0.5);
+function makeGradRgb(openingHex: string, middleHex: string, endHex: string) {
+  return (progress: number): RGB => {
+    const opening = hexToRgb(openingHex);
+    const middle = hexToRgb(middleHex);
+    const end = hexToRgb(endHex);
+    const t = Math.min(1, Math.max(0, progress));
+    return t < 0.5 ? lerpRgb(opening, middle, t / 0.5) : lerpRgb(middle, end, (t - 0.5) / 0.5);
+  };
 }
 
-export function getMoveGradient(progress: number, alpha: number) {
-  return rgbToCss(getMoveGradientRgb(progress), alpha);
+function getTokens(style: ArtStyle): StyleTokens {
+  switch (style) {
+    case "ink": {
+      return {
+        bgBase: "#f5f0e8",
+        bgGradientInner: "rgba(180, 160, 120, 0.08)",
+        bgGradientOuter: "rgba(0, 0, 0, 0)",
+        boardLight: "rgba(0, 0, 0, 0.04)",
+        boardDark: "rgba(0, 0, 0, 0.09)",
+        boardGrid: "rgba(0, 0, 0, 0.10)",
+        boardBorder: "rgba(0, 0, 0, 0.18)",
+        boardLabel: "rgba(0, 0, 0, 0.40)",
+        compositeOperation: "source-over",
+        whiteBase: { r: 30, g: 60, b: 120 },
+        blackBase: { r: 10, g: 10, b: 10 },
+        shadowBlurScale: 0,
+        opacityRange: [0.18, 0.80],
+        gradientOpening: "#1e3a8a",
+        gradientMiddle: "#6b21a8",
+        gradientEnd: "#7f1d1d",
+        captureFill: (p) => `rgba(180, 30, 30, ${(0.55 + p * 0.3).toFixed(3)})`,
+        captureShadow: (p) => `rgba(180, 30, 30, ${Math.min(1, 0.55 + p * 0.3 + 0.15).toFixed(3)})`,
+        castleColour: "rgba(30, 100, 60, 0.65)",
+        castleShadow: "rgba(0, 0, 0, 0)",
+        mateColour: "rgba(120, 20, 20, 0.85)",
+        mateShadow: "rgba(0, 0, 0, 0)",
+        mateStroke: "rgba(0, 0, 0, 0)",
+        titleColour: "rgba(20, 20, 20, 0.92)",
+        subtitleColour: "rgba(60, 50, 40, 0.65)",
+        chipBg: "rgba(0, 0, 0, 0.06)",
+        chipBorder: "rgba(0, 0, 0, 0.18)",
+        chipText: "rgba(20, 20, 20, 0.85)",
+        footerPrimaryColour: "rgba(20, 20, 20, 0.70)",
+        footerBodyColour: "rgba(60, 50, 40, 0.58)",
+        posterBorderColour: "rgba(0, 0, 0, 0.12)",
+        legendBg: "rgba(0, 0, 0, 0.05)",
+        legendBorder: "rgba(0, 0, 0, 0.12)",
+        legendTitleColour: "rgba(20, 20, 20, 0.92)",
+        legendText: "rgba(20, 20, 20, 0.80)",
+        lineWidthMultiplier: 1.0,
+        knightBendBase: 0.7,
+        boardOverlay: "rgba(0, 0, 0, 0)",
+      };
+    }
+
+    case "blueprint": {
+      return {
+        bgBase: "#0d1b2a",
+        bgGradientInner: "rgba(0, 100, 180, 0.18)",
+        bgGradientOuter: "rgba(0, 0, 0, 0)",
+        boardLight: "rgba(100, 180, 255, 0.07)",
+        boardDark: "rgba(0, 50, 120, 0.10)",
+        boardGrid: "rgba(100, 200, 255, 0.14)",
+        boardBorder: "rgba(100, 200, 255, 0.22)",
+        boardLabel: "rgba(150, 210, 255, 0.55)",
+        compositeOperation: "source-over",
+        whiteBase: { r: 220, g: 240, b: 255 },
+        blackBase: { r: 80, g: 180, b: 255 },
+        shadowBlurScale: 0.4,
+        opacityRange: [0.30, 0.90],
+        gradientOpening: "#93c5fd",
+        gradientMiddle: "#c4b5fd",
+        gradientEnd: "#f9a8d4",
+        captureFill: (p) => `rgba(255, 220, 80, ${(0.55 + p * 0.35).toFixed(3)})`,
+        captureShadow: (p) => `rgba(255, 220, 80, ${Math.min(1, 0.55 + p * 0.35 + 0.15).toFixed(3)})`,
+        castleColour: "rgba(100, 255, 180, 0.72)",
+        castleShadow: "rgba(100, 255, 180, 0.40)",
+        mateColour: "rgba(255, 240, 100, 0.85)",
+        mateShadow: "rgba(255, 240, 100, 0.55)",
+        mateStroke: "rgba(255, 240, 100, 0.40)",
+        titleColour: "rgba(200, 230, 255, 0.95)",
+        subtitleColour: "rgba(150, 200, 240, 0.70)",
+        chipBg: "rgba(100, 180, 255, 0.12)",
+        chipBorder: "rgba(100, 200, 255, 0.22)",
+        chipText: "rgba(200, 235, 255, 0.90)",
+        footerPrimaryColour: "rgba(180, 220, 255, 0.75)",
+        footerBodyColour: "rgba(140, 190, 230, 0.60)",
+        posterBorderColour: "rgba(100, 200, 255, 0.14)",
+        legendBg: "rgba(0, 60, 120, 0.40)",
+        legendBorder: "rgba(100, 200, 255, 0.18)",
+        legendTitleColour: "rgba(200, 230, 255, 0.95)",
+        legendText: "rgba(200, 235, 255, 0.85)",
+        lineWidthMultiplier: 1.0,
+        knightBendBase: 0.7,
+        boardOverlay: "rgba(0, 30, 80, 0.04)",
+      };
+    }
+
+    case "watercolor": {
+      return {
+        bgBase: "#faf8f4",
+        bgGradientInner: "rgba(200, 180, 230, 0.12)",
+        bgGradientOuter: "rgba(0, 0, 0, 0)",
+        boardLight: "rgba(0, 0, 0, 0.025)",
+        boardDark: "rgba(0, 0, 0, 0.055)",
+        boardGrid: "rgba(0, 0, 0, 0.06)",
+        boardBorder: "rgba(0, 0, 0, 0.10)",
+        boardLabel: "rgba(80, 60, 50, 0.45)",
+        compositeOperation: "multiply",
+        whiteBase: { r: 100, g: 160, b: 220 },
+        blackBase: { r: 200, g: 100, b: 130 },
+        shadowBlurScale: 0,
+        opacityRange: [0.12, 0.55],
+        gradientOpening: "#bfdbfe",
+        gradientMiddle: "#ddd6fe",
+        gradientEnd: "#fecaca",
+        captureFill: (p) => `rgba(180, 60, 60, ${(0.30 + p * 0.25).toFixed(3)})`,
+        captureShadow: (p) => `rgba(180, 60, 60, ${Math.min(1, 0.30 + p * 0.25 + 0.10).toFixed(3)})`,
+        castleColour: "rgba(80, 180, 120, 0.38)",
+        castleShadow: "rgba(0, 0, 0, 0)",
+        mateColour: "rgba(160, 40, 40, 0.55)",
+        mateShadow: "rgba(0, 0, 0, 0)",
+        mateStroke: "rgba(0, 0, 0, 0)",
+        titleColour: "rgba(40, 30, 25, 0.88)",
+        subtitleColour: "rgba(80, 65, 55, 0.62)",
+        chipBg: "rgba(0, 0, 0, 0.05)",
+        chipBorder: "rgba(0, 0, 0, 0.12)",
+        chipText: "rgba(40, 30, 25, 0.82)",
+        footerPrimaryColour: "rgba(50, 40, 35, 0.72)",
+        footerBodyColour: "rgba(90, 75, 65, 0.56)",
+        posterBorderColour: "rgba(0, 0, 0, 0.08)",
+        legendBg: "rgba(0, 0, 0, 0.04)",
+        legendBorder: "rgba(0, 0, 0, 0.10)",
+        legendTitleColour: "rgba(40, 30, 25, 0.88)",
+        legendText: "rgba(40, 30, 25, 0.78)",
+        lineWidthMultiplier: 2.2,
+        knightBendBase: 1.1,
+        boardOverlay: "rgba(0, 0, 0, 0)",
+      };
+    }
+
+    default: {
+      // "neon" — maps exactly to all original hardcoded values
+      const gRgb = makeGradRgb("#2563eb", "#7c3aed", "#ef4444");
+      return {
+        bgBase: "#0b0f1a",
+        bgGradientInner: "rgba(99, 102, 241, 0.12)",
+        bgGradientOuter: "rgba(0, 0, 0, 0)",
+        boardLight: "rgba(255,255,255,0.06)",
+        boardDark: "rgba(255,255,255,0.02)",
+        boardGrid: "rgba(255,255,255,0.06)",
+        boardBorder: "rgba(255,255,255,0.12)",
+        boardLabel: "rgba(255,255,255,0.25)",
+        compositeOperation: "lighter",
+        whiteBase: { r: 34, g: 211, b: 238 },
+        blackBase: { r: 229, g: 231, b: 235 },
+        shadowBlurScale: 1.0,
+        opacityRange: [0.25, 0.95],
+        gradientOpening: "#2563eb",
+        gradientMiddle: "#7c3aed",
+        gradientEnd: "#ef4444",
+        captureFill: (p) => rgbToCss(gRgb(p), 0.75),
+        captureShadow: (p) => rgbToCss(gRgb(p), 0.9),
+        castleColour: "rgba(34, 197, 94, 0.75)",
+        castleShadow: "rgba(34, 197, 94, 0.9)",
+        mateColour: "rgba(250, 204, 21, 0.78)",
+        mateShadow: "rgba(250, 204, 21, 0.95)",
+        mateStroke: "rgba(250, 204, 21, 0.55)",
+        titleColour: "rgba(255,255,255,0.92)",
+        subtitleColour: "rgba(255,255,255,0.60)",
+        chipBg: "rgba(255,255,255,0.08)",
+        chipBorder: "rgba(255,255,255,0.12)",
+        chipText: "rgba(255,255,255,0.82)",
+        footerPrimaryColour: "rgba(255,255,255,0.65)",
+        footerBodyColour: "rgba(255,255,255,0.52)",
+        posterBorderColour: "rgba(255,255,255,0.10)",
+        legendBg: "rgba(255,255,255,0.05)",
+        legendBorder: "rgba(255,255,255,0.10)",
+        legendTitleColour: "rgba(255,255,255,0.78)",
+        legendText: "rgba(255,255,255,0.60)",
+        lineWidthMultiplier: 1.0,
+        knightBendBase: 0.7,
+        boardOverlay: "rgba(255,255,255,0.03)",
+      };
+    }
+  }
+}
+
+function getMoveGradientRgb(progress: number, tokens: StyleTokens): RGB {
+  return makeGradRgb(tokens.gradientOpening, tokens.gradientMiddle, tokens.gradientEnd)(progress);
+}
+
+export function getMoveGradient(progress: number, alpha: number, tokens: StyleTokens) {
+  return rgbToCss(getMoveGradientRgb(progress, tokens), alpha);
 }
 
 export function squareToCenter(square: string, boardX: number, boardY: number, squareSize: number) {
@@ -174,32 +412,30 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.closePath();
 }
 
-function fillBackground(ctx: CanvasRenderingContext2D, size: number) {
+function fillBackground(ctx: CanvasRenderingContext2D, size: number, tokens: StyleTokens) {
   ctx.save();
-  ctx.fillStyle = "#0b0f1a";
+  ctx.fillStyle = tokens.bgBase;
   ctx.fillRect(0, 0, size, size);
   const grad = ctx.createRadialGradient(size * 0.5, size * 0.35, size * 0.1, size * 0.5, size * 0.55, size * 0.9);
-  grad.addColorStop(0, "rgba(99, 102, 241, 0.12)");
-  grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+  grad.addColorStop(0, tokens.bgGradientInner);
+  grad.addColorStop(1, tokens.bgGradientOuter);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
   ctx.restore();
 }
 
-function drawBoard(ctx: CanvasRenderingContext2D, x0: number, y0: number, boardSize: number) {
+function drawBoard(ctx: CanvasRenderingContext2D, x0: number, y0: number, boardSize: number, tokens: StyleTokens) {
   const squareSize = boardSize / 8;
-  const light = "rgba(255,255,255,0.06)";
-  const dark = "rgba(255,255,255,0.02)";
 
   ctx.save();
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
-      ctx.fillStyle = (r + f) % 2 === 0 ? light : dark;
+      ctx.fillStyle = (r + f) % 2 === 0 ? tokens.boardLight : tokens.boardDark;
       ctx.fillRect(x0 + f * squareSize, y0 + r * squareSize, squareSize, squareSize);
     }
   }
 
-  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.strokeStyle = tokens.boardGrid;
   ctx.lineWidth = 1;
   for (let i = 0; i <= 8; i++) {
     const p = x0 + i * squareSize;
@@ -215,7 +451,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, x0: number, y0: number, boardS
     ctx.stroke();
   }
 
-  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.fillStyle = tokens.boardLabel;
   ctx.font = `${Math.max(10, Math.round(squareSize * 0.18))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   ctx.textBaseline = "top";
   for (let f = 0; f < 8; f++) {
@@ -228,7 +464,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, x0: number, y0: number, boardS
     ctx.fillText(rank, x0 - squareSize * 0.18, y0 + r * squareSize + squareSize * 0.5);
   }
 
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.strokeStyle = tokens.boardBorder;
   ctx.lineWidth = 2;
   ctx.strokeRect(x0 - 1, y0 - 1, boardSize + 2, boardSize + 2);
   ctx.restore();
@@ -258,12 +494,12 @@ function drawKnightArc(
   ctx.stroke();
 }
 
-function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, tokens: StyleTokens) {
   ctx.save();
   roundedRectPath(ctx, x, y, w, h, Math.max(10, h * 0.18));
-  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  ctx.fillStyle = tokens.legendBg;
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.10)";
+  ctx.strokeStyle = tokens.legendBorder;
   ctx.lineWidth = 1;
   ctx.stroke();
 
@@ -303,7 +539,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   let y0 = y + padY;
 
   // Title
-  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.fillStyle = tokens.legendTitleColour;
   ctx.textBaseline = "top";
   ctx.font = `600 ${titleSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   ctx.fillText("Legend", x0, y0);
@@ -312,18 +548,18 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   // Gradient bar (time progression)
   const barW = w - padX * 2;
   const g = ctx.createLinearGradient(x0, 0, x0 + barW, 0);
-  g.addColorStop(0, getMoveGradient(0, 1));
-  g.addColorStop(0.5, getMoveGradient(0.5, 1));
-  g.addColorStop(1, getMoveGradient(1, 1));
+  g.addColorStop(0, getMoveGradient(0, 1, tokens));
+  g.addColorStop(0.5, getMoveGradient(0.5, 1, tokens));
+  g.addColorStop(1, getMoveGradient(1, 1, tokens));
   roundedRectPath(ctx, x0, y0, barW, barH, barH / 2);
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.strokeStyle = tokens.boardBorder;
   ctx.lineWidth = 1;
   ctx.stroke();
   y0 += barH + gapBar;
 
-  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.fillStyle = tokens.legendText;
   ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   ctx.fillText("Opening → Endgame", x0, y0);
   y0 += labelSize + gapAfterLine;
@@ -336,7 +572,7 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   const drawItem = (yy: number, drawIcon: () => void, text: string) => {
     ctx.save();
     drawIcon();
-    ctx.fillStyle = "rgba(255,255,255,0.60)";
+    ctx.fillStyle = tokens.legendText;
     ctx.textBaseline = "middle";
     ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.fillText(text, textX, yy + itemH / 2);
@@ -344,9 +580,10 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   };
 
   drawItem(y0, () => {
+    const wb = tokens.whiteBase;
     ctx.shadowBlur = Math.max(8, h * 0.14);
-    ctx.shadowColor = "rgba(34, 211, 238, 0.6)";
-    ctx.strokeStyle = "rgba(34, 211, 238, 0.7)";
+    ctx.shadowColor = rgbToCss(wb, 0.6);
+    ctx.strokeStyle = rgbToCss(wb, 0.7);
     ctx.lineWidth = Math.max(2, iconS * 0.22);
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -358,9 +595,10 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   y0 += itemH;
 
   drawItem(y0, () => {
+    const bb = tokens.blackBase;
     ctx.shadowBlur = Math.max(8, h * 0.14);
-    ctx.shadowColor = "rgba(229, 231, 235, 0.5)";
-    ctx.strokeStyle = "rgba(229, 231, 235, 0.55)";
+    ctx.shadowColor = rgbToCss(bb, 0.5);
+    ctx.strokeStyle = rgbToCss(bb, 0.55);
     ctx.lineWidth = Math.max(2, iconS * 0.22);
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -373,8 +611,8 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 
   drawItem(y0, () => {
     ctx.shadowBlur = Math.max(10, h * 0.16);
-    ctx.shadowColor = getMoveGradient(0.85, 0.9);
-    ctx.fillStyle = getMoveGradient(0.85, 0.75);
+    ctx.shadowColor = tokens.captureShadow(0.85);
+    ctx.fillStyle = tokens.captureFill(0.85);
     ctx.beginPath();
     ctx.arc(iconX + iconS * 0.5, y0 + itemH * 0.5, iconS * 0.34, 0, Math.PI * 2);
     ctx.fill();
@@ -384,8 +622,8 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 
   drawItem(y0, () => {
     ctx.shadowBlur = Math.max(10, h * 0.16);
-    ctx.shadowColor = "rgba(34, 197, 94, 0.9)";
-    ctx.fillStyle = "rgba(34, 197, 94, 0.75)";
+    ctx.shadowColor = tokens.castleShadow;
+    ctx.fillStyle = tokens.castleColour;
     roundedRectPath(ctx, iconX + iconS * 0.15, y0 + itemH * 0.2, iconS * 0.7, iconS * 0.7, iconS * 0.28);
     ctx.fill();
     ctx.shadowBlur = 0;
@@ -399,8 +637,8 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
     const r1 = iconS * 0.45;
     const r2 = iconS * 0.20;
     ctx.shadowBlur = Math.max(10, h * 0.16);
-    ctx.shadowColor = "rgba(250, 204, 21, 0.90)";
-    ctx.fillStyle = "rgba(250, 204, 21, 0.78)";
+    ctx.shadowColor = tokens.mateShadow;
+    ctx.fillStyle = tokens.mateColour;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
       const a = (Math.PI * 2 * i) / 10 - Math.PI / 2;
@@ -426,6 +664,7 @@ function drawPosterText(
   headerH: number,
   footerH: number,
   footerMaxW: number,
+  tokens: StyleTokens,
 ) {
   ctx.save();
   const title = meta.title ?? "Chess Artwork";
@@ -439,12 +678,12 @@ function drawPosterText(
 
   const leftX = margin;
   const topY = margin;
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.fillStyle = tokens.titleColour;
   ctx.textBaseline = "top";
   ctx.font = `600 ${Math.max(18, Math.round(size * 0.030))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   ctx.fillText(title, leftX, topY);
 
-  ctx.fillStyle = "rgba(255,255,255,0.60)";
+  ctx.fillStyle = tokens.subtitleColour;
   ctx.font = `${Math.max(12, Math.round(size * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   const subLine = [subtitle, date].filter(Boolean).join(" • ");
   if (subLine) ctx.fillText(subLine, leftX, topY + size * 0.038);
@@ -459,33 +698,33 @@ function drawPosterText(
   ctx.font = `600 ${Math.max(12, Math.round(chipH * 0.45))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
 
   const chipY = playersY;
-  const drawChip = (x: number, label: string, tint: "base" | "result") => {
+  const drawChip = (x: number, label: string) => {
     ctx.save();
     const w = ctx.measureText(label).width + chipPadX * 2;
     roundedRectPath(ctx, x, chipY, w, chipH, chipH / 2);
-    ctx.fillStyle = tint === "result" ? "rgba(99,102,241,0.18)" : "rgba(255,255,255,0.08)";
+    ctx.fillStyle = tokens.chipBg;
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = tokens.chipBorder;
     ctx.lineWidth = 1;
     ctx.stroke();
-    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.fillStyle = tokens.chipText;
     ctx.textBaseline = "middle";
     ctx.fillText(label, x + chipPadX, chipY + chipH / 2);
     ctx.restore();
     return w;
   };
 
-  const w1 = drawChip(leftX, whiteLabel, "base");
-  drawChip(leftX + w1 + chipGap, blackLabel, "base");
+  const w1 = drawChip(leftX, whiteLabel);
+  drawChip(leftX + w1 + chipGap, blackLabel);
 
   const footerY = size - margin - footerH + Math.round(footerH * 0.14);
-  ctx.fillStyle = "rgba(255,255,255,0.65)";
+  ctx.fillStyle = tokens.footerPrimaryColour;
   ctx.textBaseline = "top";
   ctx.font = `600 ${Math.max(12, Math.round(size * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   const footerLine = [termination, result && result !== "*" ? `Result: ${result}` : ""].filter(Boolean).join(" • ");
   if (footerLine) ctx.fillText(footerLine, margin, footerY);
 
-  ctx.fillStyle = "rgba(255,255,255,0.52)";
+  ctx.fillStyle = tokens.footerBodyColour;
   ctx.font = `${Math.max(10, Math.round(size * 0.0125))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   if (movesText) {
     const maxW = footerMaxW;
@@ -524,13 +763,15 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
   canvas.width = size;
   canvas.height = size;
 
-  fillBackground(ctx, size);
+  const tokens = getTokens(options.style ?? "neon");
+
+  fillBackground(ctx, size, tokens);
 
   const availableH = size - margin * 2 - headerH - footerH;
   const boardSize = Math.floor(Math.min(size - margin * 2, availableH));
   const x0 = Math.floor((size - boardSize) / 2);
   const y0 = margin + headerH + Math.floor((availableH - boardSize) / 2);
-  const { squareSize } = drawBoard(ctx, x0, y0, boardSize);
+  const { squareSize } = drawBoard(ctx, x0, y0, boardSize, tokens);
 
   if (meta) {
     const footerY = size - margin - footerH;
@@ -541,39 +782,41 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     const legendY = footerY + Math.round((footerH - legendH) / 2);
 
     const footerMaxW = size - margin * 2 - legendW - gap;
-    drawPosterText(ctx, size, meta, margin, headerH, footerH, footerMaxW);
-    drawLegend(ctx, legendX, legendY, legendW, legendH);
+    drawPosterText(ctx, size, meta, margin, headerH, footerH, footerMaxW, tokens);
+    drawLegend(ctx, legendX, legendY, legendW, legendH, tokens);
   }
 
   const total = moves.length;
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
+  ctx.globalCompositeOperation = tokens.compositeOperation;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
   for (let i = 0; i < moves.length; i++) {
     const m = moves[i];
     const progress = total <= 1 ? 1 : i / (total - 1);
-    const opacity = 0.25 + progress * 0.7;
+    const [minOp, maxOp] = tokens.opacityRange;
+    const opacity = minOp + progress * (maxOp - minOp);
 
     const start = squareToCenter(m.from, x0, y0, squareSize);
     const end = squareToCenter(m.to, x0, y0, squareSize);
 
-    ctx.lineWidth = pieceWidth(m.piece, squareSize);
+    ctx.lineWidth = pieceWidth(m.piece, squareSize) * tokens.lineWidthMultiplier;
 
     // White/Black differentiation while preserving time progression:
     // we tint the time-gradient towards a side-specific base.
-    const base = m.color === "w" ? hexToRgb("#22d3ee") : hexToRgb("#e5e7eb"); // cyan-400 / zinc-200
-    const mixed = lerpRgb(getMoveGradientRgb(progress), base, 0.30);
+    const base = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
+    const mixed = lerpRgb(getMoveGradientRgb(progress, tokens), base, 0.30);
     const stroke = rgbToCss(mixed, opacity);
     const glow = rgbToCss(mixed, Math.min(1, opacity * 0.85));
 
     ctx.shadowColor = glow;
-    ctx.shadowBlur = Math.max(6, squareSize * 0.15);
+    const blurBase = Math.max(6, squareSize * 0.15);
+    ctx.shadowBlur = tokens.shadowBlurScale === 0 ? 0 : blurBase * tokens.shadowBlurScale;
     ctx.strokeStyle = stroke;
 
     if (m.piece === "Knight") {
-      const bend = squareSize * (0.7 + (i % 3) * 0.18) * (i % 2 === 0 ? 1 : -1);
+      const bend = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * (i % 2 === 0 ? 1 : -1);
       drawKnightArc(ctx, start, end, bend);
     } else {
       ctx.beginPath();
@@ -585,8 +828,8 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     if (m.capture) {
       ctx.save();
       ctx.shadowBlur = Math.max(10, squareSize * 0.25);
-      ctx.shadowColor = getMoveGradient(progress, 0.9);
-      ctx.fillStyle = getMoveGradient(progress, 0.75);
+      ctx.shadowColor = tokens.captureShadow(progress);
+      ctx.fillStyle = tokens.captureFill(progress);
       ctx.beginPath();
       ctx.arc(end.x, end.y, squareSize * 0.14, 0, Math.PI * 2);
       ctx.fill();
@@ -596,8 +839,8 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     if (m.castle) {
       ctx.save();
       ctx.shadowBlur = Math.max(10, squareSize * 0.22);
-      ctx.shadowColor = "rgba(34, 197, 94, 0.9)";
-      ctx.fillStyle = "rgba(34, 197, 94, 0.75)";
+      ctx.shadowColor = tokens.castleShadow;
+      ctx.fillStyle = tokens.castleColour;
       const s = squareSize * 0.16;
       roundedRectPath(ctx, end.x - s, end.y - s, s * 2, s * 2, s * 0.55);
       ctx.fill();
@@ -607,8 +850,8 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     if (m.mate) {
       ctx.save();
       ctx.shadowBlur = Math.max(14, squareSize * 0.28);
-      ctx.shadowColor = "rgba(250, 204, 21, 0.95)";
-      ctx.fillStyle = "rgba(250, 204, 21, 0.78)";
+      ctx.shadowColor = tokens.mateShadow;
+      ctx.fillStyle = tokens.mateColour;
 
       const cx = end.x;
       const cy = end.y;
@@ -626,7 +869,7 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
       ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = "rgba(250, 204, 21, 0.55)";
+      ctx.strokeStyle = tokens.mateStroke;
       ctx.lineWidth = Math.max(1, squareSize * 0.02);
       ctx.stroke();
       ctx.restore();
@@ -637,17 +880,16 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
 
   ctx.save();
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "rgba(255,255,255,0.03)";
+  ctx.fillStyle = tokens.boardOverlay;
   ctx.fillRect(x0, y0, boardSize, boardSize);
   ctx.restore();
 
   if (meta) {
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.strokeStyle = tokens.posterBorderColour;
     ctx.lineWidth = Math.max(2, Math.round(size * 0.003));
     roundedRectPath(ctx, margin * 0.35, margin * 0.35, size - margin * 0.7, size - margin * 0.7, Math.round(size * 0.03));
     ctx.stroke();
     ctx.restore();
   }
 }
-
