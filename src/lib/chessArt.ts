@@ -100,8 +100,20 @@ export type PosterMeta = {
 
 export type ArtStyle = "neon" | "ink" | "blueprint" | "watercolor";
 
+export type Format = "square" | "portrait" | "landscape";
+
+export function formatDimensions(format: Format): { width: number; height: number } {
+  switch (format) {
+    case "portrait":  return { width: 1587, height: 2245 };
+    case "landscape": return { width: 2245, height: 1587 };
+    case "square":
+    default:          return { width: 2048, height: 2048 };
+  }
+}
+
 export type DrawOptions = {
-  size: number;
+  width: number;
+  height: number;
   padding?: number;
   style?: ArtStyle; // default "neon"
   poster?: PosterMeta;
@@ -412,15 +424,19 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.closePath();
 }
 
-function fillBackground(ctx: CanvasRenderingContext2D, size: number, tokens: StyleTokens) {
+function fillBackground(ctx: CanvasRenderingContext2D, width: number, height: number, tokens: StyleTokens) {
+  const minDim = Math.min(width, height);
   ctx.save();
   ctx.fillStyle = tokens.bgBase;
-  ctx.fillRect(0, 0, size, size);
-  const grad = ctx.createRadialGradient(size * 0.5, size * 0.35, size * 0.1, size * 0.5, size * 0.55, size * 0.9);
+  ctx.fillRect(0, 0, width, height);
+  const grad = ctx.createRadialGradient(
+    width * 0.5, height * 0.35, minDim * 0.1,
+    width * 0.5, height * 0.55, minDim * 0.9,
+  );
   grad.addColorStop(0, tokens.bgGradientInner);
   grad.addColorStop(1, tokens.bgGradientOuter);
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, width, height);
   ctx.restore();
 }
 
@@ -658,7 +674,8 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 
 function drawPosterText(
   ctx: CanvasRenderingContext2D,
-  size: number,
+  width: number,
+  height: number,
   meta: PosterMeta,
   margin: number,
   headerH: number,
@@ -666,6 +683,7 @@ function drawPosterText(
   footerMaxW: number,
   tokens: StyleTokens,
 ) {
+  const base = Math.min(width, height);
   ctx.save();
   const title = meta.title ?? "Chess Artwork";
   const subtitle = meta.subtitle ?? "";
@@ -680,13 +698,13 @@ function drawPosterText(
   const topY = margin;
   ctx.fillStyle = tokens.titleColour;
   ctx.textBaseline = "top";
-  ctx.font = `600 ${Math.max(18, Math.round(size * 0.030))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = `600 ${Math.max(18, Math.round(base * 0.030))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   ctx.fillText(title, leftX, topY);
 
   ctx.fillStyle = tokens.subtitleColour;
-  ctx.font = `${Math.max(12, Math.round(size * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = `${Math.max(12, Math.round(base * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   const subLine = [subtitle, date].filter(Boolean).join(" • ");
-  if (subLine) ctx.fillText(subLine, leftX, topY + size * 0.038);
+  if (subLine) ctx.fillText(subLine, leftX, topY + base * 0.038);
 
   const playersY = topY + headerH * 0.54;
   const chipH = Math.max(22, Math.round(headerH * 0.22));
@@ -717,72 +735,75 @@ function drawPosterText(
   const w1 = drawChip(leftX, whiteLabel);
   drawChip(leftX + w1 + chipGap, blackLabel);
 
-  const footerY = size - margin - footerH + Math.round(footerH * 0.14);
+  const footerY = height - margin - footerH + Math.round(footerH * 0.14);
   ctx.fillStyle = tokens.footerPrimaryColour;
   ctx.textBaseline = "top";
-  ctx.font = `600 ${Math.max(12, Math.round(size * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = `600 ${Math.max(12, Math.round(base * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   const footerLine = [termination, result && result !== "*" ? `Result: ${result}` : ""].filter(Boolean).join(" • ");
   if (footerLine) ctx.fillText(footerLine, margin, footerY);
 
   ctx.fillStyle = tokens.footerBodyColour;
-  ctx.font = `${Math.max(10, Math.round(size * 0.0125))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = `${Math.max(10, Math.round(base * 0.0125))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   if (movesText) {
     const maxW = footerMaxW;
     const words = movesText.split(/\s+/).filter(Boolean);
     let line = "";
     let lineY = footerY + Math.round(footerH * 0.28);
-    const lineH = Math.round(size * 0.016);
+    const lineH = Math.round(base * 0.016);
     for (const word of words) {
       const next = line ? `${line} ${word}` : word;
       if (ctx.measureText(next).width > maxW && line) {
         ctx.fillText(line, margin, lineY);
         line = word;
         lineY += lineH;
-        if (lineY > size - margin - lineH) break;
+        if (lineY > height - margin - lineH) break;
       } else {
         line = next;
       }
     }
-    if (line && lineY <= size - margin - lineH) ctx.fillText(line, margin, lineY);
+    if (line && lineY <= height - margin - lineH) ctx.fillText(line, margin, lineY);
   }
 
   ctx.restore();
 }
 
 export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: DrawOptions) {
-  const size = Math.max(256, Math.floor(options.size));
+  const width  = Math.max(256, Math.floor(options.width));
+  const height = Math.max(256, Math.floor(options.height));
+  const minDim = Math.min(width, height);
   const meta = options.poster;
-  const margin = options.padding ?? Math.round(size * 0.06);
-  const headerH = meta ? Math.round(size * 0.16) : 0;
+  const margin = options.padding ?? Math.round(minDim * 0.06);
+  const headerH = meta ? Math.round(minDim * 0.16) : 0;
   // Give the poster footer extra height to fit the full movetext.
-  const footerH = meta ? Math.round(size * 0.23) : 0;
+  const footerH = meta ? Math.round(minDim * 0.23) : 0;
 
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width  = width;
+  canvas.height = height;
 
   const tokens = getTokens(options.style ?? "neon");
 
-  fillBackground(ctx, size, tokens);
+  fillBackground(ctx, width, height, tokens);
 
-  const availableH = size - margin * 2 - headerH - footerH;
-  const boardSize = Math.floor(Math.min(size - margin * 2, availableH));
-  const x0 = Math.floor((size - boardSize) / 2);
+  const availableH = height - margin * 2 - headerH - footerH;
+  const availableW = width  - margin * 2;
+  const boardSize = Math.floor(Math.min(availableW, availableH));
+  const x0 = Math.floor((width  - boardSize) / 2);
   const y0 = margin + headerH + Math.floor((availableH - boardSize) / 2);
   const { squareSize } = drawBoard(ctx, x0, y0, boardSize, tokens);
 
   if (meta) {
-    const footerY = size - margin - footerH;
-    const legendW = Math.round(size * 0.30);
-    const gap = Math.round(size * 0.02);
+    const footerY = height - margin - footerH;
+    const legendW = Math.round(minDim * 0.30);
+    const gap = Math.round(minDim * 0.02);
     const legendH = Math.round(footerH * 0.78);
-    const legendX = size - margin - legendW;
+    const legendX = width - margin - legendW;
     const legendY = footerY + Math.round((footerH - legendH) / 2);
 
-    const footerMaxW = size - margin * 2 - legendW - gap;
-    drawPosterText(ctx, size, meta, margin, headerH, footerH, footerMaxW, tokens);
+    const footerMaxW = width - margin * 2 - legendW - gap;
+    drawPosterText(ctx, width, height, meta, margin, headerH, footerH, footerMaxW, tokens);
     drawLegend(ctx, legendX, legendY, legendW, legendH, tokens);
   }
 
@@ -804,9 +825,9 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     ctx.lineWidth = pieceWidth(m.piece, squareSize) * tokens.lineWidthMultiplier;
 
     // White/Black differentiation while preserving time progression:
-    // we tint the time-gradient towards a side-specific base.
-    const base = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
-    const mixed = lerpRgb(getMoveGradientRgb(progress, tokens), base, 0.30);
+    // we tint the time-gradient towards a side-specific base colour.
+    const colorBase = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
+    const mixed = lerpRgb(getMoveGradientRgb(progress, tokens), colorBase, 0.30);
     const stroke = rgbToCss(mixed, opacity);
     const glow = rgbToCss(mixed, Math.min(1, opacity * 0.85));
 
@@ -887,8 +908,8 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
   if (meta) {
     ctx.save();
     ctx.strokeStyle = tokens.posterBorderColour;
-    ctx.lineWidth = Math.max(2, Math.round(size * 0.003));
-    roundedRectPath(ctx, margin * 0.35, margin * 0.35, size - margin * 0.7, size - margin * 0.7, Math.round(size * 0.03));
+    ctx.lineWidth = Math.max(2, Math.round(minDim * 0.003));
+    roundedRectPath(ctx, margin * 0.35, margin * 0.35, width - margin * 0.7, height - margin * 0.7, Math.round(minDim * 0.03));
     ctx.stroke();
     ctx.restore();
   }

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ChessArtCanvas, type ChessArtCanvasHandle } from "@/components/ChessArtCanvas";
-import { parsePgn, type ArtStyle } from "@/lib/chessArt";
+import { parsePgn, type ArtStyle, type Format } from "@/lib/chessArt";
 
 export default function Home() {
   const canvasRef = useRef<ChessArtCanvasHandle | null>(null);
@@ -33,7 +33,7 @@ Qg8 15. Qh5 Nd7 16. b4 Bd6 17. Bd2 Qf7 18. Qg4 Qe6 19. Qe4 Nb6 20. Qxb7 Qg4 21.
 a4 Rc8 22. Rad1 Qxg6 23. Be3 Nc4 24. Qc6 Qf7 25. Bxa7 e4 26. Rd4 Qh5 27. Rf4 e3
 28. g4 e2 29. gxh5 e1=Q+ 30. Kg2 Re2+ 31. Kh3 f5 32. Qxc4 Qf1+ 33. Kh4 Rxh2+ 34.
 Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
-  const [size, setSize] = useState<1024 | 2048>(2048);
+  const [format, setFormat] = useState<Format>("square");
   const [style, setStyle] = useState<ArtStyle>("neon");
   const [error, setError] = useState<string | null>(null);
   const [movesCount, setMovesCount] = useState<number>(0);
@@ -128,14 +128,15 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Output</label>
+                  <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Format</label>
                   <select
-                    value={size}
-                    onChange={(e) => setSize(Number(e.target.value) as 1024 | 2048)}
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value as Format)}
                     className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800 shadow-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:focus:ring-indigo-500/20"
                   >
-                    <option value={1024}>1024×1024</option>
-                    <option value={2048}>2048×2048</option>
+                    <option value="square">Square (2048 × 2048)</option>
+                    <option value="portrait">Portrait (A4 print)</option>
+                    <option value="landscape">Landscape (wallpaper)</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-2">
@@ -176,7 +177,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
               <p className="text-xs text-zinc-600 dark:text-zinc-300">Opening name is inferred from PGN tags.</p>
             </div>
             <div className="mt-3">
-              <ChessArtCanvas ref={canvasRef} pgn={pgn} size={size} style={style} />
+              <ChessArtCanvas ref={canvasRef} pgn={pgn} format={format} style={style} />
             </div>
           </section>
         </div>

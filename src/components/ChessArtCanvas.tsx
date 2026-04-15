@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { drawChessArt, parsePgn, type ArtStyle, type ParsedGame } from "@/lib/chessArt";
+import { drawChessArt, formatDimensions, parsePgn, type ArtStyle, type Format, type ParsedGame } from "@/lib/chessArt";
 
 export type ChessArtCanvasHandle = {
   downloadPng: () => void;
@@ -70,11 +70,13 @@ function deriveOpeningName(game: ParsedGame) {
   }
 }
 
-export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; size: number; style: ArtStyle }>(function ChessArtCanvas(
-  { pgn, size, style },
+export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; format: Format; style: ArtStyle }>(function ChessArtCanvas(
+  { pgn, format, style },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const { width, height } = formatDimensions(format);
 
   const parsed = useMemo(() => {
     try {
@@ -101,7 +103,8 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
       .join(" • ");
 
     drawChessArt(canvas, parsed.moves, {
-      size,
+      width,
+      height,
       style,
       poster: {
         title: deriveTitle(parsed),
@@ -125,7 +128,8 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
     try {
       fresh = parsePgn(pgn);
       drawChessArt(canvas, fresh.moves, {
-        size,
+        width,
+        height,
         style,
         poster: {
           title: deriveTitle(fresh),
@@ -151,7 +155,7 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
     const whiteSlug = fresh.tags.White?.trim().toLowerCase().replace(/\s+/g, "-") ?? "white";
     const blackSlug = fresh.tags.Black?.trim().toLowerCase().replace(/\s+/g, "-") ?? "black";
     const year = (fresh.tags.Date ?? fresh.tags.UTCDate ?? "").slice(0, 4).replace("????", "") || null;
-    const parts = ["plotted", `${whiteSlug}-vs-${blackSlug}`, year, style].filter(Boolean);
+    const parts = ["plotted", `${whiteSlug}-vs-${blackSlug}`, year, format, style].filter(Boolean);
     const filename = `${parts.join("-")}.png`;
 
     canvas.toBlob((blob) => {
@@ -167,13 +171,13 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
     }, "image/png");
   };
 
-  useImperativeHandle(ref, () => ({ downloadPng }), [pgn, size, style]);
+  useImperativeHandle(ref, () => ({ downloadPng }), [pgn, format, style]);
 
   useEffect(() => {
     if (!parsed || parsed.moves.length === 0) return;
     render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pgn, size, style]);
+  }, [pgn, format, style]);
 
   return (
     <div className="relative">
@@ -181,9 +185,9 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; si
       <div className="relative flex items-center justify-center rounded-2xl bg-black/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.55)]">
         <canvas
           ref={canvasRef}
-          width={size}
-          height={size}
-          style={{ width: "100%", height: "auto", maxWidth: 720 }}
+          width={width}
+          height={height}
+          style={{ width: "100%", height: "auto", maxWidth: Math.min(width, 720) }}
           className="rounded-xl"
         />
         {/* Soft vignette to dissolve canvas edges into the background */}
