@@ -1,4 +1,4 @@
-# Plotted
+# <img src="./public/plotted-icon.svg" alt="" width="32" height="32" style="vertical-align:middle"> Plotted
 
 Turn any chess game into a poster. Paste a PGN, pick a style, download your art.
 
