@@ -57,9 +57,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/60 px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
             PGN → Poster Art
           </div>
-          <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-            Plotted
-          </h1>
+          <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Plotted</h1>
           <p className="max-w-2xl text-pretty text-sm leading-6 text-zinc-600 dark:text-zinc-300">
             Turn any chess game into a poster. Paste a PGN, choose a style, download your art.
           </p>
@@ -111,14 +109,20 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
                   <p className="mb-1 font-semibold text-zinc-700 dark:text-zinc-200">Chess.com</p>
                   <ol className="mb-3 list-inside list-decimal space-y-0.5">
                     <li>Open any game from your profile or the Analysis page</li>
-                    <li>Click the <span className="font-medium">⋯ menu</span> (top-right of the board)</li>
-                    <li>Select <span className="font-medium">Share &amp; Export → Export PGN</span></li>
+                    <li>
+                      Click the <span className="font-medium">⋯ menu</span> (top-right of the board)
+                    </li>
+                    <li>
+                      Select <span className="font-medium">Share &amp; Export → Export PGN</span>
+                    </li>
                     <li>Copy all the text and paste it above</li>
                   </ol>
                   <p className="mb-1 font-semibold text-zinc-700 dark:text-zinc-200">Lichess</p>
                   <ol className="list-inside list-decimal space-y-0.5">
                     <li>Open a game from your profile</li>
-                    <li>Click <span className="font-medium">FEN &amp; PGN</span> in the left panel</li>
+                    <li>
+                      Click <span className="font-medium">FEN &amp; PGN</span> in the left panel
+                    </li>
                     <li>Copy the PGN section and paste it above</li>
                   </ol>
                 </div>
@@ -183,11 +187,9 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
         </div>
 
         <footer className="mx-auto mt-16 w-full max-w-6xl flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 pb-10">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            Plotted © 2026
-          </span>
+          <span className="text-xs text-zinc-500 dark:text-zinc-400">Plotted © 2026</span>
           <a
-            href="https://github.com/YOUR_USERNAME/YOUR_REPO"
+            href="https://github.com/catsbyy/plotted"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="GitHub"
