@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Plotted — Chess Game Art",
   description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
-  metadataBase: new URL("https://YOUR_DEPLOYED_URL.vercel.app"),
+  metadataBase: new URL("https://plotted-eight.vercel.app"),
   openGraph: {
     title: "Plotted — Chess Game Art",
     description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
-    url: "https://YOUR_DEPLOYED_URL.vercel.app",
+    url: "https://plotted-eight.vercel.app",
     siteName: "Plotted",
     images: [
       {
@@ -46,11 +46,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );
 }

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <linearGradient id="dotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glowStrong">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background: dark rounded square -->
+  <rect width="512" height="512" rx="112" fill="#0b0f1a"/>
+
+  <!-- Subtle radial background glow -->
+  <radialGradient id="bgGlow" cx="50%" cy="42%" r="55%">
+    <stop offset="0%" stop-color="#3730a3" stop-opacity="0.35"/>
+    <stop offset="100%" stop-color="#0b0f1a" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="512" height="512" rx="112" fill="url(#bgGlow)"/>
+
+  <!-- Start dot (bottom-left area) -->
+  <circle cx="148" cy="342" r="10" fill="#2563eb" filter="url(#glow)" opacity="0.9"/>
+
+  <!-- Knight arc path: quadratic curve from bottom-left to top-right (L-shape knight move feel) -->
+  <!-- From (148, 342) curving up and right to (364, 152) -->
+  <!-- Control point pulled to upper-left to create the characteristic knight arc -->
+  <path
+    d="M148,342 Q152,168 364,152"
+    fill="none"
+    stroke="url(#arcGrad)"
+    stroke-width="18"
+    stroke-linecap="round"
+    filter="url(#glow)"
+    opacity="0.95"
+  />
+
+  <!-- Glow layer for the arc (softer, wider) -->
+  <path
+    d="M148,342 Q152,168 364,152"
+    fill="none"
+    stroke="url(#arcGrad)"
+    stroke-width="32"
+    stroke-linecap="round"
+    opacity="0.18"
+  />
+
+  <!-- End dot (top-right) — brighter, destination point -->
+  <circle cx="364" cy="152" r="13" fill="url(#dotGrad)" filter="url(#glowStrong)" opacity="0.95"/>
+  <!-- Inner bright core of end dot -->
+  <circle cx="364" cy="152" r="6" fill="#f0abfc" opacity="0.9"/>
+</svg>
