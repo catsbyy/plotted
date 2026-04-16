@@ -223,7 +223,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
           </section>
         </div>
 
-        <footer className="mx-auto mt-16 w-full max-w-6xl flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 pb-10">
+        <footer className="mx-auto mt-16 w-full max-w-6xl flex flex-wrap items-center justify-between gap-4 border-t border-black/10 dark:border-white/10 pt-6 pb-10">
           <span className="text-xs text-zinc-500 dark:text-zinc-400">Plotted © 2026</span>
           <a
             href="https://github.com/catsbyy/plotted"
