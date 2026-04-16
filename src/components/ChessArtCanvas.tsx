@@ -181,8 +181,8 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
 
   return (
     <div className="relative">
-      <div className="absolute -inset-10 -z-10 rounded-[36px] bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.28),rgba(0,0,0,0))] blur-xl" />
-      <div className="relative flex items-center justify-center rounded-2xl bg-black/20 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.55)]">
+      <div className="absolute -inset-10 -z-10 rounded-[36px] bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.08),rgba(0,0,0,0))] blur-xl dark:bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.28),rgba(0,0,0,0))]" />
+      <div className="relative flex items-center justify-center rounded-2xl border border-black/[0.08] bg-black/5 p-3 shadow-sm dark:border-white/10 dark:bg-black/20 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.55)]">
         <canvas
           ref={canvasRef}
           width={width}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChessArtCanvas, type ChessArtCanvasHandle } from "@/components/ChessArtCanvas";
 import { parsePgn, type ArtStyle, type Format } from "@/lib/chessArt";
 
@@ -33,11 +33,28 @@ Qg8 15. Qh5 Nd7 16. b4 Bd6 17. Bd2 Qf7 18. Qg4 Qe6 19. Qe4 Nb6 20. Qxb7 Qg4 21.
 a4 Rc8 22. Rad1 Qxg6 23. Be3 Nc4 24. Qc6 Qf7 25. Bxa7 e4 26. Rd4 Qh5 27. Rf4 e3
 28. g4 e2 29. gxh5 e1=Q+ 30. Kg2 Re2+ 31. Kh3 f5 32. Qxc4 Qf1+ 33. Kh4 Rxh2+ 34.
 Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [format, setFormat] = useState<Format>("square");
   const [style, setStyle] = useState<ArtStyle>("neon");
   const [error, setError] = useState<string | null>(null);
   const [movesCount, setMovesCount] = useState<number>(0);
   const [pgnHelpOpen, setPgnHelpOpen] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("plotted-theme") as "dark" | "light" | null;
+    const initial = saved ?? "dark";
+    setTheme(initial);
+    document.documentElement.classList.toggle("dark", initial === "dark");
+    document.documentElement.classList.toggle("light", initial === "light");
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("plotted-theme", next);
+    document.documentElement.classList.toggle("dark", next === "dark");
+    document.documentElement.classList.toggle("light", next === "light");
+  };
 
   useMemo(() => {
     try {
@@ -51,17 +68,37 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
   }, [pgn]);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(80%_80%_at_50%_20%,rgba(99,102,241,0.18),rgba(0,0,0,0))] px-4 py-8 text-zinc-900 dark:bg-[radial-gradient(80%_80%_at_50%_20%,rgba(99,102,241,0.22),rgba(0,0,0,0))] dark:text-zinc-100 sm:px-6 sm:py-10 md:px-10">
+    <div className="min-h-screen bg-[radial-gradient(80%_80%_at_50%_20%,rgba(99,102,241,0.07),rgba(0,0,0,0))] px-4 py-8 text-zinc-900 dark:bg-[radial-gradient(80%_80%_at_50%_20%,rgba(99,102,241,0.22),rgba(0,0,0,0))] dark:text-zinc-100 sm:px-6 sm:py-10 md:px-10">
       <div className="mx-auto w-full max-w-6xl">
-        <header className="flex flex-col gap-3">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/60 px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
-            PGN → Poster Art
-          </div>
-          <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Plotted</h1>
-          <p className="max-w-2xl text-pretty text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-            Turn any chess game into a poster. Paste a PGN, choose a style, download your art.
-          </p>
-        </header>
+        <div className="flex items-start justify-between gap-4">
+          <header className="flex flex-col gap-3">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/60 px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
+              PGN → Poster Art
+            </div>
+            <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Plotted</h1>
+            <p className="max-w-2xl text-pretty text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+              Turn any chess game into a poster. Paste a PGN, choose a style, download your art.
+            </p>
+          </header>
+
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white/60 text-zinc-600 shadow-sm backdrop-blur transition hover:bg-white/80 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+          >
+            {theme === "dark" ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+          </button>
+        </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[420px_1fr]">
           <section className="rounded-2xl border border-white/10 bg-white/70 p-4 shadow-sm backdrop-blur dark:bg-white/5">
