@@ -696,10 +696,28 @@ function drawPosterText(
 
   const leftX = margin;
   const topY = margin;
+  const maxTitleW = width - margin * 2;
+  const defaultTitleSize = Math.max(18, Math.round(base * 0.030));
+  const minTitleSize = Math.max(14, Math.round(base * 0.018));
+
+  let titleFontSize = defaultTitleSize;
+  ctx.font = `600 ${titleFontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  while (ctx.measureText(title).width > maxTitleW && titleFontSize > minTitleSize) {
+    titleFontSize -= 1;
+    ctx.font = `600 ${titleFontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  }
+
+  let displayTitle = title;
+  if (ctx.measureText(displayTitle).width > maxTitleW) {
+    while (ctx.measureText(displayTitle + "…").width > maxTitleW && displayTitle.length > 0) {
+      displayTitle = displayTitle.slice(0, -1);
+    }
+    displayTitle = displayTitle.trimEnd() + "…";
+  }
+
   ctx.fillStyle = tokens.titleColour;
   ctx.textBaseline = "top";
-  ctx.font = `600 ${Math.max(18, Math.round(base * 0.030))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-  ctx.fillText(title, leftX, topY);
+  ctx.fillText(displayTitle, leftX, topY);
 
   ctx.fillStyle = tokens.subtitleColour;
   ctx.font = `${Math.max(12, Math.round(base * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
