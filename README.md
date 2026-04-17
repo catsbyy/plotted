@@ -4,7 +4,7 @@ Turn any chess game into a poster. Paste a PGN, pick a style, download your art.
 
 ![Plotted](./screenshots/hero.png)
 
-[Try it live](https://plotted-eight.vercel.app)
+[Try it live](https://plottedart.com/)
 
 ---
 

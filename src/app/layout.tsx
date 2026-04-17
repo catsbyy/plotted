@@ -21,11 +21,11 @@ export const metadata: Metadata = {
   },
   title: "Plotted — Chess Game Art",
   description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
-  metadataBase: new URL("https://plotted-eight.vercel.app"),
+  metadataBase: new URL("https://plottedart.com/"),
   openGraph: {
     title: "Plotted — Chess Game Art",
     description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
-    url: "https://plotted-eight.vercel.app",
+    url: "https://plottedart.com/",
     siteName: "Plotted",
     images: [
       {
@@ -59,7 +59,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}<Analytics /></body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
