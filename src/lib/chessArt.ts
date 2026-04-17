@@ -176,6 +176,12 @@ export type StyleTokens = {
   boardOverlay: string;
 };
 
+const FONT_STACK = "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+
+function sansFont(size: number, weight?: 600): string {
+  return weight ? `${weight} ${size}px ${FONT_STACK}` : `${size}px ${FONT_STACK}`;
+}
+
 function hexToRgb(hex: string): RGB {
   const h = hex.replace("#", "").trim();
   const full =
@@ -498,6 +504,28 @@ export function getMoveGradient(progress: number, alpha: number, color: "w" | "b
   return rgbToCss(getMoveGradientRgb(progress, color, style), alpha);
 }
 
+// Computes stroke and glow colours for a move line given its position in the game.
+function computeMoveStroke(
+  move: Move,
+  moveProgress: number,
+  tokens: StyleTokens,
+  style: ArtStyle
+): { stroke: string; glow: string } {
+  const [minOp, maxOp] = tokens.opacityRange;
+  const opacity = minOp + moveProgress * (maxOp - minOp);
+  let gradRgb: RGB;
+  if (style === "watercolor") {
+    const colorBase = move.color === "w" ? tokens.whiteBase : tokens.blackBase;
+    gradRgb = lerpRgb(makeGradRgb("#bfdbfe", "#ddd6fe", "#fecaca")(moveProgress), colorBase, 0.3);
+  } else {
+    gradRgb = getMoveGradientRgb(moveProgress, move.color, style);
+  }
+  return {
+    stroke: rgbToCss(gradRgb, opacity),
+    glow: rgbToCss(gradRgb, Math.min(1, opacity * 0.85)),
+  };
+}
+
 export function squareToCenter(square: string, boardX: number, boardY: number, squareSize: number) {
   const file = square.charCodeAt(0) - "a".charCodeAt(0);
   const rank = Number(square[1]) - 1;
@@ -505,6 +533,25 @@ export function squareToCenter(square: string, boardX: number, boardY: number, s
     x: boardX + file * squareSize + squareSize / 2,
     y: boardY + (7 - rank) * squareSize + squareSize / 2,
   };
+}
+
+// Board layout geometry. hasPoster controls whether header/footer space is reserved.
+// Must stay in sync with drawChessArt's own layout calculations.
+export function getBoardGeometry(
+  width: number,
+  height: number,
+  hasPoster: boolean
+): { x0: number; y0: number; squareSize: number; boardSize: number; margin: number } {
+  const minDim = Math.min(width, height);
+  const margin = Math.round(minDim * 0.06);
+  const headerH = hasPoster ? Math.round(minDim * 0.16) : 0;
+  const footerH = hasPoster ? Math.round(minDim * 0.23) : 0;
+  const availH = height - margin * 2 - headerH - footerH;
+  const availW = width - margin * 2;
+  const boardSize = Math.floor(Math.min(availW, availH));
+  const x0 = Math.floor((width - boardSize) / 2);
+  const y0 = margin + headerH + Math.floor((availH - boardSize) / 2);
+  return { x0, y0, squareSize: boardSize / 8, boardSize, margin };
 }
 
 function pieceWidth(piece: PieceType, squareSize: number) {
@@ -583,10 +630,7 @@ function drawBoard(ctx: CanvasRenderingContext2D, x0: number, y0: number, boardS
   }
 
   ctx.fillStyle = tokens.boardLabel;
-  ctx.font = `${Math.max(
-    10,
-    Math.round(squareSize * 0.18)
-  )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(Math.max(10, Math.round(squareSize * 0.18)));
   ctx.textBaseline = "top";
   for (let f = 0; f < 8; f++) {
     const file = String.fromCharCode("a".charCodeAt(0) + f);
@@ -606,26 +650,63 @@ function drawBoard(ctx: CanvasRenderingContext2D, x0: number, y0: number, boardS
   return { squareSize };
 }
 
+// Draws a knight's curved move line using a pre-computed control point.
 function drawKnightArc(
   ctx: CanvasRenderingContext2D,
   start: { x: number; y: number },
   end: { x: number; y: number },
-  bend: number
+  cp: { x: number; y: number }
 ) {
-  const mx = (start.x + end.x) / 2;
-  const my = (start.y + end.y) / 2;
+  ctx.beginPath();
+  ctx.moveTo(start.x, start.y);
+  ctx.quadraticCurveTo(cp.x, cp.y, end.x, end.y);
+  ctx.stroke();
+}
+
+// Computes the quadratic Bézier control point for a knight move. The bend is
+// pushed outward from the board centre to avoid arcs crossing through the centre.
+function knightControlPoint(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  boardCentreX: number,
+  boardCentreY: number,
+  squareSize: number,
+  moveIndex: number,
+  knightBendBase: number
+): { x: number; y: number } {
+  const midX = (start.x + end.x) / 2;
+  const midY = (start.y + end.y) / 2;
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const len = Math.max(1, Math.hypot(dx, dy));
   const nx = -dy / len;
   const ny = dx / len;
-  const cx = mx + nx * bend;
-  const cy = my + ny * bend;
+  const dot = nx * (midX - boardCentreX) + ny * (midY - boardCentreY);
+  const direction = dot >= 0 ? 1 : -1;
+  const bend = squareSize * (knightBendBase + (moveIndex % 3) * 0.18) * direction;
+  return { x: midX + nx * bend, y: midY + ny * bend };
+}
 
+// Builds a star/burst path. Alternates between outerRadius and innerRadius for
+// each of the `points` vertices. Does not fill or stroke — caller must do that.
+function drawStarShape(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  outerRadius: number,
+  innerRadius: number,
+  points: number
+) {
   ctx.beginPath();
-  ctx.moveTo(start.x, start.y);
-  ctx.quadraticCurveTo(cx, cy, end.x, end.y);
-  ctx.stroke();
+  for (let k = 0; k < points; k++) {
+    const angle = (Math.PI * 2 * k) / points - Math.PI / 2;
+    const r = k % 2 === 0 ? outerRadius : innerRadius;
+    const px = cx + Math.cos(angle) * r;
+    const py = cy + Math.sin(angle) * r;
+    if (k === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
 }
 
 function drawPixelLine(
@@ -667,13 +748,13 @@ function drawLegend(
 
   // Auto-scale legend typography so all items fit without overlap.
   const padX0 = w * 0.08;
-  const padY0 = h * 0.14;                          // top + bottom breathing room
+  const padY0 = h * 0.14; // top + bottom breathing room
   const titleSize0 = Math.max(11, Math.round(h * 0.18));
   const barH0 = Math.max(8, Math.round(h * 0.096));
   const labelSize0 = Math.max(9, Math.round(h * 0.13));
   const itemH0 = Math.max(13, Math.round(h * 0.128));
-  const sectionGap = h * 0.08;  // title → label, White bar → Black bar
-  const tightGap   = h * 0.03;  // label → first bar, last bar → items (descriptor relationship)
+  const sectionGap = h * 0.08; // title → label, White bar → Black bar
+  const tightGap = h * 0.03; // label → first bar, last bar → items (descriptor relationship)
 
   const required =
     padY0 * 2 + titleSize0 + sectionGap + labelSize0 + tightGap + barH0 + sectionGap + barH0 + tightGap + itemH0 * 3;
@@ -692,7 +773,7 @@ function drawLegend(
   // Title
   ctx.fillStyle = tokens.legendTitleColour;
   ctx.textBaseline = "top";
-  ctx.font = `600 ${titleSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(titleSize, 600);
   ctx.fillText("Legend", x0, y0);
   y0 += titleSize + sectionGap;
 
@@ -701,7 +782,7 @@ function drawLegend(
   if (style === "mono") {
     // Single opacity bar — no colour gradient, no player distinction
     ctx.fillStyle = tokens.legendText;
-    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.font = sansFont(labelSize);
     ctx.textBaseline = "top";
     ctx.fillText("Opening → Endgame", x0, y0);
     y0 += labelSize + tightGap;
@@ -719,7 +800,7 @@ function drawLegend(
   } else {
     // Shared label above both gradient bars
     ctx.fillStyle = tokens.legendText;
-    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.font = sansFont(labelSize);
     ctx.textBaseline = "top";
     ctx.fillText("Opening → Endgame", x0, y0);
     y0 += labelSize + tightGap;
@@ -728,7 +809,7 @@ function drawLegend(
     const [wOpen, wEnd, bOpen, bEnd] = PLAYER_GRADIENTS[style];
 
     // Measure "White"/"Black" label width to align the bar
-    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.font = sansFont(labelSize);
     const sideW = Math.max(ctx.measureText("White").width, ctx.measureText("Black").width) + w * 0.04;
     const gradBarX = x0 + sideW;
     const gradBarW = barW - sideW;
@@ -774,7 +855,7 @@ function drawLegend(
     drawIcon();
     ctx.fillStyle = tokens.legendText;
     ctx.textBaseline = "middle";
-    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.font = sansFont(labelSize);
     ctx.fillText(text, textX, yy + itemH / 2);
     ctx.restore();
   };
@@ -828,16 +909,7 @@ function drawLegend(
       ctx.shadowBlur = Math.max(10, h * 0.16);
       ctx.shadowColor = tokens.mateShadow;
       ctx.fillStyle = tokens.mateColour;
-      ctx.beginPath();
-      for (let i = 0; i < 10; i++) {
-        const a = (Math.PI * 2 * i) / 10 - Math.PI / 2;
-        const rr = i % 2 === 0 ? r1 : r2;
-        const px = cx + Math.cos(a) * rr;
-        const py = cy + Math.sin(a) * rr;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
+      drawStarShape(ctx, cx, cy, r1, r2, 10);
       ctx.fill();
       ctx.shadowBlur = 0;
     },
@@ -876,10 +948,10 @@ function drawPosterText(
   const minTitleSize = Math.max(14, Math.round(base * 0.018));
 
   let titleFontSize = defaultTitleSize;
-  ctx.font = `600 ${titleFontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(titleFontSize, 600);
   while (ctx.measureText(title).width > maxTitleW && titleFontSize > minTitleSize) {
     titleFontSize -= 1;
-    ctx.font = `600 ${titleFontSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.font = sansFont(titleFontSize, 600);
   }
 
   let displayTitle = title;
@@ -895,10 +967,7 @@ function drawPosterText(
   ctx.fillText(displayTitle, leftX, topY);
 
   ctx.fillStyle = tokens.subtitleColour;
-  ctx.font = `${Math.max(
-    12,
-    Math.round(base * 0.016)
-  )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(Math.max(12, Math.round(base * 0.016)));
   const subLine = [subtitle, date].filter(Boolean).join(" • ");
   if (subLine) ctx.fillText(subLine, leftX, topY + base * 0.038);
 
@@ -909,10 +978,7 @@ function drawPosterText(
 
   const whiteLabel = `White: ${white}`;
   const blackLabel = `Black: ${black}`;
-  ctx.font = `600 ${Math.max(
-    12,
-    Math.round(chipH * 0.45)
-  )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(Math.max(12, Math.round(chipH * 0.45)), 600);
 
   const chipY = playersY;
   const drawChip = (x: number, label: string) => {
@@ -937,18 +1003,12 @@ function drawPosterText(
   const footerY = height - margin - footerH + Math.round(footerH * 0.14);
   ctx.fillStyle = tokens.footerPrimaryColour;
   ctx.textBaseline = "top";
-  ctx.font = `600 ${Math.max(
-    12,
-    Math.round(base * 0.016)
-  )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(Math.max(12, Math.round(base * 0.016)), 600);
   const footerLine = termination ? termination : result || "";
   if (footerLine) ctx.fillText(footerLine, margin, footerY);
 
   ctx.fillStyle = tokens.footerBodyColour;
-  ctx.font = `${Math.max(
-    10,
-    Math.round(base * 0.0125)
-  )}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.font = sansFont(Math.max(10, Math.round(base * 0.0125)));
   if (movesText) {
     const maxW = footerMaxW;
     const words = movesText.split(/\s+/).filter(Boolean);
@@ -976,7 +1036,7 @@ function quadraticLength(
   start: { x: number; y: number },
   control: { x: number; y: number },
   end: { x: number; y: number },
-  steps = 20,
+  steps = 20
 ): number {
   let length = 0;
   let prev = start;
@@ -1005,7 +1065,7 @@ export function drawMoveAtProgress(
   squareSize: number,
   style: ArtStyle,
   tokens: StyleTokens,
-  progress: number,
+  progress: number
 ): void {
   const t = Math.min(1, Math.max(0, progress));
   const m = move;
@@ -1015,19 +1075,7 @@ export function drawMoveAtProgress(
   const end = squareToCenter(m.to, x0, y0, squareSize);
 
   const moveProgress = totalMoves <= 1 ? 1 : i / (totalMoves - 1);
-  const [minOp, maxOp] = tokens.opacityRange;
-  const opacity = minOp + moveProgress * (maxOp - minOp);
-
-  let gradRgb: RGB;
-  if (style === "watercolor") {
-    const colorBase = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
-    const wcGrad = makeGradRgb("#bfdbfe", "#ddd6fe", "#fecaca")(moveProgress);
-    gradRgb = lerpRgb(wcGrad, colorBase, 0.3);
-  } else {
-    gradRgb = getMoveGradientRgb(moveProgress, m.color, style);
-  }
-  const stroke = rgbToCss(gradRgb, opacity);
-  const glow = rgbToCss(gradRgb, Math.min(1, opacity * 0.85));
+  const { stroke, glow } = computeMoveStroke(m, moveProgress, tokens, style);
 
   ctx.save();
   ctx.globalCompositeOperation = tokens.compositeOperation;
@@ -1039,31 +1087,19 @@ export function drawMoveAtProgress(
   ctx.shadowBlur = tokens.shadowBlurScale === 0 ? 0 : Math.max(6, squareSize * 0.15) * tokens.shadowBlurScale;
 
   if (m.piece === "Knight") {
-    const boardCentreX = x0 + squareSize * 4;
-    const boardCentreY = y0 + squareSize * 4;
-    const moveMidX = (start.x + end.x) / 2;
-    const moveMidY = (start.y + end.y) / 2;
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const len = Math.max(1, Math.hypot(dx, dy));
-    const nx = -dy / len;
-    const ny = dx / len;
-    const cx = moveMidX - boardCentreX;
-    const cy = moveMidY - boardCentreY;
-    const dot = nx * cx + ny * cy;
-    const direction = dot >= 0 ? 1 : -1;
-    const bendAmount = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * direction;
-    const cpX = moveMidX + nx * bendAmount;
-    const cpY = moveMidY + ny * bendAmount;
-
-    const totalLen = quadraticLength(start, { x: cpX, y: cpY }, end);
+    const cp = knightControlPoint(
+      start, end,
+      x0 + squareSize * 4, y0 + squareSize * 4,
+      squareSize, i, tokens.knightBendBase,
+    );
+    const totalLen = quadraticLength(start, cp, end);
     const drawnLen = totalLen * t;
 
     ctx.setLineDash([drawnLen, totalLen + 1]);
     ctx.lineDashOffset = 0;
     ctx.beginPath();
     ctx.moveTo(start.x, start.y);
-    ctx.quadraticCurveTo(cpX, cpY, end.x, end.y);
+    ctx.quadraticCurveTo(cp.x, cp.y, end.x, end.y);
     ctx.stroke();
   } else {
     const totalLen = lineLength(start, end);
@@ -1116,18 +1152,7 @@ export function drawMoveAtProgress(
       ctx.shadowBlur = Math.max(14, squareSize * 0.28);
       ctx.shadowColor = tokens.mateShadow;
       ctx.fillStyle = tokens.mateColour;
-      const r1 = squareSize * 0.22;
-      const r2 = squareSize * 0.1;
-      ctx.beginPath();
-      for (let k = 0; k < 12; k++) {
-        const a = (Math.PI * 2 * k) / 12 - Math.PI / 2;
-        const rr = k % 2 === 0 ? r1 : r2;
-        const px = end.x + Math.cos(a) * rr;
-        const py = end.y + Math.sin(a) * rr;
-        if (k === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
+      drawStarShape(ctx, end.x, end.y, squareSize * 0.22, squareSize * 0.1, 12);
       ctx.fill();
       ctx.strokeStyle = tokens.mateStroke;
       ctx.lineWidth = Math.max(1, squareSize * 0.02);
@@ -1190,27 +1215,15 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
   for (let i = 0; i < visibleMoves.length; i++) {
     const m = visibleMoves[i];
     const progress = total <= 1 ? 1 : i / (total - 1);
-    const [minOp, maxOp] = tokens.opacityRange;
-    const opacity = minOp + progress * (maxOp - minOp);
-
     const start = squareToCenter(m.from, x0, y0, squareSize);
     const end = squareToCenter(m.to, x0, y0, squareSize);
 
     ctx.lineWidth = pieceWidth(m.piece, squareSize) * tokens.lineWidthMultiplier;
 
-    let gradRgb: RGB;
-    if (style === "watercolor") {
-      // Original approach: single 3-stop gradient tinted by player base colour.
-      // Multiply blend makes separate warm/cool gradients muddy; the whiteBase/blackBase
-      // tint at 30% gives warm/cool distinction without hue clashes.
-      const colorBase = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
-      const wcGrad = makeGradRgb("#bfdbfe", "#ddd6fe", "#fecaca")(progress);
-      gradRgb = lerpRgb(wcGrad, colorBase, 0.3);
-    } else {
-      gradRgb = getMoveGradientRgb(progress, m.color, style);
-    }
-    const stroke = rgbToCss(gradRgb, opacity);
-    const glow = rgbToCss(gradRgb, Math.min(1, opacity * 0.85));
+    // Watercolour uses a single 3-stop gradient tinted by player base colour.
+    // Multiply blend makes separate warm/cool gradients muddy; the whiteBase/blackBase
+    // tint at 30% gives warm/cool distinction without hue clashes.
+    const { stroke, glow } = computeMoveStroke(m, progress, tokens, style);
 
     ctx.shadowColor = glow;
     const blurBase = Math.max(6, squareSize * 0.15);
@@ -1218,21 +1231,12 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     ctx.strokeStyle = stroke;
 
     if (m.piece === "Knight") {
-      const boardCentreX = x0 + boardSize / 2;
-      const boardCentreY = y0 + boardSize / 2;
-      const moveMidX = (start.x + end.x) / 2;
-      const moveMidY = (start.y + end.y) / 2;
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
-      const len = Math.max(1, Math.hypot(dx, dy));
-      const nx = -dy / len;
-      const ny = dx / len;
-      const cx = moveMidX - boardCentreX;
-      const cy = moveMidY - boardCentreY;
-      const dot = nx * cx + ny * cy;
-      const direction = dot >= 0 ? 1 : -1;
-      const bend = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * direction;
-      drawKnightArc(ctx, start, end, bend);
+      const cp = knightControlPoint(
+        start, end,
+        x0 + boardSize / 2, y0 + boardSize / 2,
+        squareSize, i, tokens.knightBendBase,
+      );
+      drawKnightArc(ctx, start, end, cp);
     } else {
       if (style === "retro") {
         const pixelSize = Math.max(4, Math.round(squareSize * 0.08));
@@ -1283,21 +1287,7 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
       ctx.shadowBlur = Math.max(14, squareSize * 0.28);
       ctx.shadowColor = tokens.mateShadow;
       ctx.fillStyle = tokens.mateColour;
-
-      const cx = end.x;
-      const cy = end.y;
-      const r1 = squareSize * 0.22;
-      const r2 = squareSize * 0.1;
-      ctx.beginPath();
-      for (let k = 0; k < 12; k++) {
-        const a = (Math.PI * 2 * k) / 12 - Math.PI / 2;
-        const rr = k % 2 === 0 ? r1 : r2;
-        const px = cx + Math.cos(a) * rr;
-        const py = cy + Math.sin(a) * rr;
-        if (k === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
+      drawStarShape(ctx, end.x, end.y, squareSize * 0.22, squareSize * 0.1, 12);
       ctx.fill();
 
       ctx.strokeStyle = getMoveGradient(progress, 0.55, m.color, style);

@@ -5,6 +5,7 @@ import {
   drawChessArt,
   drawMoveAtProgress,
   formatDimensions,
+  getBoardGeometry,
   getTokens,
   parsePgn,
   type ArtStyle,
@@ -88,7 +89,8 @@ export const ChessArtCanvas = forwardRef<
 >(function ChessArtCanvas({ pgn, format, style, onMoveChange, onPlayEnd }, ref) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isPlayingRef = useRef(false);
-  const animFrameRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep latest callbacks in refs so the animation closure always sees current values
   const onMoveChangeRef = useRef(onMoveChange);
@@ -144,21 +146,6 @@ export const ChessArtCanvas = forwardRef<
     };
   };
 
-  // Board geometry — must exactly match drawChessArt's layout calculations.
-  const getBoardGeometry = (w: number, h: number) => {
-    const minDim = Math.min(w, h);
-    const margin = Math.round(minDim * 0.06);
-    const headerH = Math.round(minDim * 0.16);
-    const footerH = Math.round(minDim * 0.23);
-    const availH = h - margin * 2 - headerH - footerH;
-    const availW = w - margin * 2;
-    const boardSize = Math.floor(Math.min(availW, availH));
-    const x0 = Math.floor((w - boardSize) / 2);
-    const y0 = margin + headerH + Math.floor((availH - boardSize) / 2);
-    const squareSize = boardSize / 8;
-    return { x0, y0, squareSize };
-  };
-
   const renderAtMove = (moveLimit: number) => {
     const canvas = canvasRef.current;
     const game = parsedRef.current;
@@ -168,10 +155,13 @@ export const ChessArtCanvas = forwardRef<
 
   const stopAnimation = () => {
     isPlayingRef.current = false;
-    if (animFrameRef.current !== null) {
-      cancelAnimationFrame(animFrameRef.current);
-      clearTimeout(animFrameRef.current);
-      animFrameRef.current = null;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   };
 
@@ -207,7 +197,7 @@ export const ChessArtCanvas = forwardRef<
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const { x0, y0, squareSize } = getBoardGeometry(widthRef.current, heightRef.current);
+      const { x0, y0, squareSize } = getBoardGeometry(widthRef.current, heightRef.current, true);
       const tokens = getTokens(styleRef.current);
 
       drawMoveAtProgress(
@@ -224,17 +214,17 @@ export const ChessArtCanvas = forwardRef<
       );
 
       if (progress < 1) {
-        animFrameRef.current = requestAnimationFrame(animate);
+        rafRef.current = requestAnimationFrame(animate);
       } else {
         // Move fully drawn — notify scrubber, then schedule next
         onMoveChangeRef.current?.(moveIndex + 1);
-        animFrameRef.current = setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           scheduleNext(moveIndex + 1, speed);
-        }, 0) as unknown as number;
+        }, 0);
       }
     };
 
-    animFrameRef.current = requestAnimationFrame(animate);
+    rafRef.current = requestAnimationFrame(animate);
   };
 
   const render = () => {
