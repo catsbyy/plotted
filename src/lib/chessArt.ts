@@ -666,18 +666,16 @@ function drawLegend(
 
   // Auto-scale legend typography so all items fit without overlap.
   const padX0 = w * 0.08;
-  const padY0 = h * 0.12;
+  const padY0 = h * 0.14;                          // top + bottom breathing room
   const titleSize0 = Math.max(11, Math.round(h * 0.18));
-  const barH0 = Math.max(8, Math.round(h * 0.096)); // ~80% of previous 0.12
+  const barH0 = Math.max(8, Math.round(h * 0.096));
   const labelSize0 = Math.max(9, Math.round(h * 0.13));
   const itemH0 = Math.max(13, Math.round(h * 0.128));
-  const gapTitle0 = h * 0.06;
-  const gapBar0 = h * 0.04;
-  const barGap0 = barH0 * 1.8;
-  const gapAfterLine0 = h * 0.1;
+  const sectionGap = h * 0.08;  // title → label, White bar → Black bar
+  const tightGap   = h * 0.03;  // label → first bar, last bar → items (descriptor relationship)
 
   const required =
-    padY0 * 2 + titleSize0 + gapTitle0 + labelSize0 + gapBar0 + barH0 + barGap0 + barH0 + gapAfterLine0 + itemH0 * 3;
+    padY0 * 2 + titleSize0 + sectionGap + labelSize0 + tightGap + barH0 + sectionGap + barH0 + tightGap + itemH0 * 3;
   const scale = Math.min(1, h / Math.max(1, required));
 
   const padX = padX0;
@@ -686,10 +684,6 @@ function drawLegend(
   const barH = Math.max(7, Math.floor(barH0 * scale));
   const labelSize = Math.max(8, Math.floor(labelSize0 * scale));
   const itemH = Math.max(12, Math.floor(itemH0 * scale));
-  const gapTitle = gapTitle0 * scale;
-  const gapBar = gapBar0 * scale;
-  const barGap = barH * 1.8;
-  const gapAfterLine = gapAfterLine0 * scale;
 
   const x0 = x + padX;
   let y0 = y + padY;
@@ -699,7 +693,7 @@ function drawLegend(
   ctx.textBaseline = "top";
   ctx.font = `600 ${titleSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
   ctx.fillText("Legend", x0, y0);
-  y0 += titleSize + gapTitle;
+  y0 += titleSize + sectionGap;
 
   const barW = w - padX * 2;
 
@@ -709,7 +703,7 @@ function drawLegend(
     ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.textBaseline = "top";
     ctx.fillText("Opening → Endgame", x0, y0);
-    y0 += labelSize + gapBar;
+    y0 += labelSize + tightGap;
 
     const monoGrad = ctx.createLinearGradient(x0, 0, x0 + barW, 0);
     monoGrad.addColorStop(0, "rgba(20, 20, 20, 0.10)");
@@ -720,14 +714,14 @@ function drawLegend(
     ctx.strokeStyle = tokens.boardBorder;
     ctx.lineWidth = 1;
     ctx.stroke();
-    y0 += barH + barGap + barH + gapAfterLine; // same vertical skip as two-bar layout
+    y0 += barH + tightGap;
   } else {
     // Shared label above both gradient bars
     ctx.fillStyle = tokens.legendText;
     ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     ctx.textBaseline = "top";
     ctx.fillText("Opening → Endgame", x0, y0);
-    y0 += labelSize + gapBar;
+    y0 += labelSize + tightGap;
 
     // Per-player gradient colours
     const [wOpen, wEnd, bOpen, bEnd] = PLAYER_GRADIENTS[style];
@@ -751,7 +745,7 @@ function drawLegend(
     ctx.fillStyle = tokens.legendText;
     ctx.textBaseline = "middle";
     ctx.fillText("White", x0, y0 + barH / 2);
-    y0 += barH + barGap;
+    y0 += barH + sectionGap;
 
     // Black player bar
     const blackGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
@@ -766,7 +760,7 @@ function drawLegend(
     ctx.fillStyle = tokens.legendText;
     ctx.textBaseline = "middle";
     ctx.fillText("Black", x0, y0 + barH / 2);
-    y0 += barH + gapAfterLine;
+    y0 += barH + tightGap;
   }
 
   // Items: Capture, Castling, Checkmate only
