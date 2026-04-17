@@ -785,9 +785,14 @@ function drawLegend(
       ctx.shadowBlur = Math.max(10, h * 0.16);
       ctx.shadowColor = tokens.captureShadow(0.85);
       ctx.fillStyle = tokens.captureFill(0.85);
-      ctx.beginPath();
-      ctx.arc(iconX + iconS * 0.5, y0 + itemH * 0.5, iconS * 0.34, 0, Math.PI * 2);
-      ctx.fill();
+      if (style === "retro") {
+        const s = iconS * 0.68;
+        ctx.fillRect(iconX + (iconS - s) / 2, y0 + itemH * 0.5 - s / 2, s, s);
+      } else {
+        ctx.beginPath();
+        ctx.arc(iconX + iconS * 0.5, y0 + itemH * 0.5, iconS * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.shadowBlur = 0;
     },
     "Capture"
@@ -800,8 +805,13 @@ function drawLegend(
       ctx.shadowBlur = Math.max(10, h * 0.16);
       ctx.shadowColor = tokens.castleShadow;
       ctx.fillStyle = tokens.castleColour;
-      roundedRectPath(ctx, iconX + iconS * 0.15, y0 + itemH * 0.2, iconS * 0.7, iconS * 0.7, iconS * 0.28);
-      ctx.fill();
+      if (style === "retro") {
+        const s = iconS * 0.7;
+        ctx.fillRect(iconX + (iconS - s) / 2, y0 + itemH * 0.5 - s / 2, s, s);
+      } else {
+        roundedRectPath(ctx, iconX + iconS * 0.15, y0 + itemH * 0.2, iconS * 0.7, iconS * 0.7, iconS * 0.28);
+        ctx.fill();
+      }
       ctx.shadowBlur = 0;
     },
     "Castling"
