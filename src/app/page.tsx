@@ -213,6 +213,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
                     <option value="ink">Ink on Paper</option>
                     <option value="blueprint">Blueprint</option>
                     <option value="watercolor">Watercolour</option>
+                    <option value="mono">Monochrome</option>
                   </select>
                 </div>
               </div>

@@ -98,7 +98,7 @@ export type PosterMeta = {
   movesText?: string;
 };
 
-export type ArtStyle = "neon" | "ink" | "blueprint" | "watercolor";
+export type ArtStyle = "neon" | "ink" | "blueprint" | "watercolor" | "mono";
 
 export type Format = "square" | "portrait" | "landscape";
 
@@ -332,6 +332,49 @@ function getTokens(style: ArtStyle): StyleTokens {
       };
     }
 
+    case "mono": {
+      return {
+        bgBase: "#f8f8f8",
+        bgGradientInner: "rgba(0, 0, 0, 0)",
+        bgGradientOuter: "rgba(0, 0, 0, 0)",
+        boardLight: "rgba(0, 0, 0, 0.03)",
+        boardDark: "rgba(0, 0, 0, 0.07)",
+        boardGrid: "rgba(0, 0, 0, 0.08)",
+        boardBorder: "rgba(0, 0, 0, 0.15)",
+        boardLabel: "rgba(0, 0, 0, 0.35)",
+        compositeOperation: "source-over",
+        whiteBase: { r: 20, g: 20, b: 20 },
+        blackBase: { r: 20, g: 20, b: 20 },
+        shadowBlurScale: 0,
+        opacityRange: [0.06, 0.88],
+        gradientOpening: "#141414",
+        gradientMiddle: "#141414",
+        gradientEnd: "#141414",
+        captureFill: (p) => `rgba(20, 20, 20, ${(0.45 + p * 0.40).toFixed(3)})`,
+        captureShadow: () => "rgba(0, 0, 0, 0)",
+        castleColour: "rgba(20, 20, 20, 0.60)",
+        castleShadow: "rgba(0, 0, 0, 0)",
+        mateColour: "rgba(20, 20, 20, 0.90)",
+        mateShadow: "rgba(0, 0, 0, 0)",
+        mateStroke: "rgba(0, 0, 0, 0)",
+        titleColour: "rgba(20, 20, 20, 0.92)",
+        subtitleColour: "rgba(20, 20, 20, 0.55)",
+        chipBg: "rgba(0, 0, 0, 0.05)",
+        chipBorder: "rgba(0, 0, 0, 0.15)",
+        chipText: "rgba(20, 20, 20, 0.85)",
+        footerPrimaryColour: "rgba(20, 20, 20, 0.70)",
+        footerBodyColour: "rgba(20, 20, 20, 0.45)",
+        posterBorderColour: "rgba(0, 0, 0, 0.10)",
+        legendBg: "rgba(0, 0, 0, 0.04)",
+        legendBorder: "rgba(0, 0, 0, 0.10)",
+        legendTitleColour: "rgba(20, 20, 20, 0.88)",
+        legendText: "rgba(20, 20, 20, 0.70)",
+        lineWidthMultiplier: 1.0,
+        knightBendBase: 0.7,
+        boardOverlay: "rgba(0, 0, 0, 0)",
+      };
+    }
+
     default: {
       // "neon" — maps exactly to all original hardcoded values
       const gRgb = makeGradRgb("#2563eb", "#7c3aed", "#ef4444");
@@ -385,6 +428,8 @@ const PLAYER_GRADIENTS: Record<ArtStyle, [string, string, string, string]> = {
   // Watercolour: same gradient both players — distinction comes from multiply layering, not hue
   watercolor: ["#bfdbfe", "#ddd6fe", "#ddd6fe", "#fecaca"],
   blueprint:  ["#e0f2fe", "#7dd3fc", "#7dd3fc", "#2563eb"],
+  // Mono: flat dark — no colour gradient, no player distinction
+  mono:       ["#141414", "#141414", "#141414", "#141414"],
 };
 
 function getMoveGradientRgb(progress: number, color: "w" | "b", style: ArtStyle): RGB {
@@ -576,51 +621,73 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   ctx.fillText("Legend", x0, y0);
   y0 += titleSize + gapTitle;
 
-  // Shared label above both gradient bars
-  ctx.fillStyle = tokens.legendText;
-  ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-  ctx.textBaseline = "top";
-  ctx.fillText("Opening → Endgame", x0, y0);
-  y0 += labelSize + gapBar;
+  const barW = w - padX * 2;
 
-  // Per-player gradient colours
-  const [wOpen, wEnd, bOpen, bEnd] = PLAYER_GRADIENTS[style];
+  if (style === "mono") {
+    // Single opacity bar — no colour gradient, no player distinction
+    ctx.fillStyle = tokens.legendText;
+    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.textBaseline = "top";
+    ctx.fillText("Early → Late", x0, y0);
+    y0 += labelSize + gapBar;
 
-  // Measure "White"/"Black" label width to align the bar
-  ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-  const sideW = Math.max(ctx.measureText("White").width, ctx.measureText("Black").width) + w * 0.04;
-  const gradBarX = x0 + sideW;
-  const gradBarW = w - padX * 2 - sideW;
+    const monoGrad = ctx.createLinearGradient(x0, 0, x0 + barW, 0);
+    monoGrad.addColorStop(0, "rgba(20, 20, 20, 0.10)");
+    monoGrad.addColorStop(1, "rgba(20, 20, 20, 0.88)");
+    roundedRectPath(ctx, x0, y0, barW, barH, barH / 2);
+    ctx.fillStyle = monoGrad;
+    ctx.fill();
+    ctx.strokeStyle = tokens.boardBorder;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    y0 += barH + barGap + barH + gapAfterLine; // same vertical skip as two-bar layout
+  } else {
+    // Shared label above both gradient bars
+    ctx.fillStyle = tokens.legendText;
+    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.textBaseline = "top";
+    ctx.fillText("Opening → Endgame", x0, y0);
+    y0 += labelSize + gapBar;
 
-  // White player bar
-  const whiteGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
-  whiteGrad.addColorStop(0, wOpen);
-  whiteGrad.addColorStop(1, wEnd);
-  roundedRectPath(ctx, gradBarX, y0, gradBarW, barH, barH / 2);
-  ctx.fillStyle = whiteGrad;
-  ctx.fill();
-  ctx.strokeStyle = tokens.boardBorder;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = tokens.legendText;
-  ctx.textBaseline = "middle";
-  ctx.fillText("White", x0, y0 + barH / 2);
-  y0 += barH + barGap;
+    // Per-player gradient colours
+    const [wOpen, wEnd, bOpen, bEnd] = PLAYER_GRADIENTS[style];
 
-  // Black player bar
-  const blackGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
-  blackGrad.addColorStop(0, bOpen);
-  blackGrad.addColorStop(1, bEnd);
-  roundedRectPath(ctx, gradBarX, y0, gradBarW, barH, barH / 2);
-  ctx.fillStyle = blackGrad;
-  ctx.fill();
-  ctx.strokeStyle = tokens.boardBorder;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = tokens.legendText;
-  ctx.textBaseline = "middle";
-  ctx.fillText("Black", x0, y0 + barH / 2);
-  y0 += barH + gapAfterLine;
+    // Measure "White"/"Black" label width to align the bar
+    ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    const sideW = Math.max(ctx.measureText("White").width, ctx.measureText("Black").width) + w * 0.04;
+    const gradBarX = x0 + sideW;
+    const gradBarW = barW - sideW;
+
+    // White player bar
+    const whiteGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
+    whiteGrad.addColorStop(0, wOpen);
+    whiteGrad.addColorStop(1, wEnd);
+    roundedRectPath(ctx, gradBarX, y0, gradBarW, barH, barH / 2);
+    ctx.fillStyle = whiteGrad;
+    ctx.fill();
+    ctx.strokeStyle = tokens.boardBorder;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = tokens.legendText;
+    ctx.textBaseline = "middle";
+    ctx.fillText("White", x0, y0 + barH / 2);
+    y0 += barH + barGap;
+
+    // Black player bar
+    const blackGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
+    blackGrad.addColorStop(0, bOpen);
+    blackGrad.addColorStop(1, bEnd);
+    roundedRectPath(ctx, gradBarX, y0, gradBarW, barH, barH / 2);
+    ctx.fillStyle = blackGrad;
+    ctx.fill();
+    ctx.strokeStyle = tokens.boardBorder;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = tokens.legendText;
+    ctx.textBaseline = "middle";
+    ctx.fillText("Black", x0, y0 + barH / 2);
+    y0 += barH + gapAfterLine;
+  }
 
   // Items: Capture, Castling, Checkmate only
   const iconS = Math.max(10, Math.round(itemH * 0.7));
