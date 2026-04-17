@@ -874,7 +874,20 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     ctx.strokeStyle = stroke;
 
     if (m.piece === "Knight") {
-      const bend = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * (i % 2 === 0 ? 1 : -1);
+      const boardCentreX = x0 + boardSize / 2;
+      const boardCentreY = y0 + boardSize / 2;
+      const moveMidX = (start.x + end.x) / 2;
+      const moveMidY = (start.y + end.y) / 2;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const len = Math.max(1, Math.hypot(dx, dy));
+      const nx = -dy / len;
+      const ny = dx / len;
+      const cx = moveMidX - boardCentreX;
+      const cy = moveMidY - boardCentreY;
+      const dot = nx * cx + ny * cy;
+      const direction = dot >= 0 ? 1 : -1;
+      const bend = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * direction;
       drawKnightArc(ctx, start, end, bend);
     } else {
       ctx.beginPath();
