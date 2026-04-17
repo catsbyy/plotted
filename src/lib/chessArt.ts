@@ -768,7 +768,7 @@ function drawPosterText(
   ctx.fillStyle = tokens.footerPrimaryColour;
   ctx.textBaseline = "top";
   ctx.font = `600 ${Math.max(12, Math.round(base * 0.016))}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-  const footerLine = [termination, result && result !== "*" ? `Result: ${result}` : ""].filter(Boolean).join(" • ");
+  const footerLine = termination ? termination : result || "";
   if (footerLine) ctx.fillText(footerLine, margin, footerY);
 
   ctx.fillStyle = tokens.footerBodyColour;

@@ -7,6 +7,16 @@ export type ChessArtCanvasHandle = {
   downloadPng: () => void;
 };
 
+function humanReadableResult(result: string, white: string, black: string): string {
+  switch (result.trim()) {
+    case "1-0":     return `${white} won`;
+    case "0-1":     return `${black} won`;
+    case "1/2-1/2": return "Draw";
+    case "½-½":     return "Draw";
+    default:        return "";
+  }
+}
+
 function formatDateForPoster(raw: string) {
   const t = raw?.trim();
   if (!t || t === "????.??.??") return "";
@@ -94,7 +104,7 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
     const tags = parsed.tags;
     const white = tags.White?.trim() || "White";
     const black = tags.Black?.trim() || "Black";
-    const result = tags.Result?.trim() || "*";
+    const result = humanReadableResult(tags.Result ?? "", white, black);
     const termination = tags.Termination?.trim() || "";
     const date = formatDateForPoster(tags.Date || tags.UTCDate || "");
     const openingName = deriveOpeningName(parsed);
@@ -141,7 +151,11 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
             .join(" • "),
           white: fresh.tags.White?.trim() || "White",
           black: fresh.tags.Black?.trim() || "Black",
-          result: fresh.tags.Result?.trim() || "*",
+          result: humanReadableResult(
+            fresh.tags.Result ?? "",
+            fresh.tags.White?.trim() ?? "White",
+            fresh.tags.Black?.trim() ?? "Black",
+          ),
           date: formatDateForPoster(fresh.tags.Date || fresh.tags.UTCDate || ""),
           termination: fresh.tags.Termination?.trim() || "",
           movesText: buildAllMoves(fresh),
