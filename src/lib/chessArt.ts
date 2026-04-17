@@ -125,7 +125,7 @@ export type DrawOptions = {
 
 type RGB = { r: number; g: number; b: number };
 
-type StyleTokens = {
+export type StyleTokens = {
   // Background
   bgBase: string;
   bgGradientInner: string;
@@ -211,7 +211,7 @@ function makeGradRgb(openingHex: string, middleHex: string, endHex: string) {
   };
 }
 
-function getTokens(style: ArtStyle): StyleTokens {
+export function getTokens(style: ArtStyle): StyleTokens {
   switch (style) {
     case "ink": {
       return {
@@ -967,6 +967,173 @@ function drawPosterText(
       }
     }
     if (line && lineY <= height - margin - lineH) ctx.fillText(line, margin, lineY);
+  }
+
+  ctx.restore();
+}
+
+function quadraticLength(
+  start: { x: number; y: number },
+  control: { x: number; y: number },
+  end: { x: number; y: number },
+  steps = 20,
+): number {
+  let length = 0;
+  let prev = start;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const mt = 1 - t;
+    const x = mt * mt * start.x + 2 * mt * t * control.x + t * t * end.x;
+    const y = mt * mt * start.y + 2 * mt * t * control.y + t * t * end.y;
+    length += Math.hypot(x - prev.x, y - prev.y);
+    prev = { x, y };
+  }
+  return length;
+}
+
+function lineLength(start: { x: number; y: number }, end: { x: number; y: number }): number {
+  return Math.hypot(end.x - start.x, end.y - start.y);
+}
+
+export function drawMoveAtProgress(
+  ctx: CanvasRenderingContext2D,
+  move: Move,
+  moveIndex: number,
+  totalMoves: number,
+  x0: number,
+  y0: number,
+  squareSize: number,
+  style: ArtStyle,
+  tokens: StyleTokens,
+  progress: number,
+): void {
+  const t = Math.min(1, Math.max(0, progress));
+  const m = move;
+  const i = moveIndex;
+
+  const start = squareToCenter(m.from, x0, y0, squareSize);
+  const end = squareToCenter(m.to, x0, y0, squareSize);
+
+  const moveProgress = totalMoves <= 1 ? 1 : i / (totalMoves - 1);
+  const [minOp, maxOp] = tokens.opacityRange;
+  const opacity = minOp + moveProgress * (maxOp - minOp);
+
+  let gradRgb: RGB;
+  if (style === "watercolor") {
+    const colorBase = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
+    const wcGrad = makeGradRgb("#bfdbfe", "#ddd6fe", "#fecaca")(moveProgress);
+    gradRgb = lerpRgb(wcGrad, colorBase, 0.3);
+  } else {
+    gradRgb = getMoveGradientRgb(moveProgress, m.color, style);
+  }
+  const stroke = rgbToCss(gradRgb, opacity);
+  const glow = rgbToCss(gradRgb, Math.min(1, opacity * 0.85));
+
+  ctx.save();
+  ctx.globalCompositeOperation = tokens.compositeOperation;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = pieceWidth(m.piece, squareSize) * tokens.lineWidthMultiplier;
+  ctx.strokeStyle = stroke;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = tokens.shadowBlurScale === 0 ? 0 : Math.max(6, squareSize * 0.15) * tokens.shadowBlurScale;
+
+  if (m.piece === "Knight") {
+    const boardCentreX = x0 + squareSize * 4;
+    const boardCentreY = y0 + squareSize * 4;
+    const moveMidX = (start.x + end.x) / 2;
+    const moveMidY = (start.y + end.y) / 2;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const len = Math.max(1, Math.hypot(dx, dy));
+    const nx = -dy / len;
+    const ny = dx / len;
+    const cx = moveMidX - boardCentreX;
+    const cy = moveMidY - boardCentreY;
+    const dot = nx * cx + ny * cy;
+    const direction = dot >= 0 ? 1 : -1;
+    const bendAmount = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * direction;
+    const cpX = moveMidX + nx * bendAmount;
+    const cpY = moveMidY + ny * bendAmount;
+
+    const totalLen = quadraticLength(start, { x: cpX, y: cpY }, end);
+    const drawnLen = totalLen * t;
+
+    ctx.setLineDash([drawnLen, totalLen + 1]);
+    ctx.lineDashOffset = 0;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.quadraticCurveTo(cpX, cpY, end.x, end.y);
+    ctx.stroke();
+  } else {
+    const totalLen = lineLength(start, end);
+    const drawnLen = totalLen * t;
+
+    ctx.setLineDash([drawnLen, totalLen + 1]);
+    ctx.lineDashOffset = 0;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+  }
+
+  ctx.setLineDash([]);
+
+  if (t >= 1) {
+    if (m.capture) {
+      ctx.save();
+      ctx.shadowBlur = Math.max(10, squareSize * 0.25);
+      ctx.shadowColor = tokens.captureShadow(moveProgress);
+      ctx.fillStyle = tokens.captureFill(moveProgress);
+      if (style === "retro") {
+        const s = squareSize * 0.18;
+        ctx.fillRect(end.x - s, end.y - s, s * 2, s * 2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(end.x, end.y, squareSize * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if (m.castle) {
+      ctx.save();
+      ctx.shadowBlur = Math.max(10, squareSize * 0.22);
+      ctx.shadowColor = tokens.castleShadow;
+      ctx.fillStyle = tokens.castleColour;
+      const s = squareSize * 0.16;
+      if (style === "retro") {
+        ctx.fillRect(end.x - s, end.y - s, s * 2, s * 2);
+      } else {
+        roundedRectPath(ctx, end.x - s, end.y - s, s * 2, s * 2, s * 0.55);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if (m.mate) {
+      ctx.save();
+      ctx.shadowBlur = Math.max(14, squareSize * 0.28);
+      ctx.shadowColor = tokens.mateShadow;
+      ctx.fillStyle = tokens.mateColour;
+      const r1 = squareSize * 0.22;
+      const r2 = squareSize * 0.1;
+      ctx.beginPath();
+      for (let k = 0; k < 12; k++) {
+        const a = (Math.PI * 2 * k) / 12 - Math.PI / 2;
+        const rr = k % 2 === 0 ? r1 : r2;
+        const px = end.x + Math.cos(a) * rr;
+        const py = end.y + Math.sin(a) * rr;
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = tokens.mateStroke;
+      ctx.lineWidth = Math.max(1, squareSize * 0.02);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   ctx.restore();

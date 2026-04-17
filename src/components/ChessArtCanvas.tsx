@@ -1,10 +1,22 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { drawChessArt, formatDimensions, parsePgn, type ArtStyle, type Format, type ParsedGame } from "@/lib/chessArt";
+import {
+  drawChessArt,
+  drawMoveAtProgress,
+  formatDimensions,
+  getTokens,
+  parsePgn,
+  type ArtStyle,
+  type Format,
+  type ParsedGame,
+} from "@/lib/chessArt";
 
 export type ChessArtCanvasHandle = {
   downloadPng: () => void;
+  play: (from: number, speed: number) => void;
+  pause: () => void;
+  seekTo: (n: number) => void;
 };
 
 function humanReadableResult(result: string, white: string, black: string): string {
@@ -29,21 +41,6 @@ function formatDateForPoster(raw: string) {
   return dt.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
 }
 
-function buildLastMoves(game: ParsedGame, halfMoves: number) {
-  const total = game.moves.length;
-  const start = Math.max(0, total - halfMoves);
-  const slice = game.moves.slice(start);
-  const out: string[] = [];
-  for (let i = 0; i < slice.length; i++) {
-    const globalIndex = start + i;
-    const moveNumber = Math.floor(globalIndex / 2) + 1;
-    const isWhite = globalIndex % 2 === 0;
-    if (isWhite) out.push(`${moveNumber}.`);
-    out.push(slice[i].san);
-  }
-  return out.join(" ");
-}
-
 function buildAllMoves(game: ParsedGame) {
   const out: string[] = [];
   for (let i = 0; i < game.moves.length; i++) {
@@ -65,7 +62,6 @@ function deriveTitle(game: ParsedGame) {
 function deriveOpeningName(game: ParsedGame) {
   const opening = game.tags.Opening?.trim();
   if (opening) return opening;
-
   const ecoUrl = game.tags.ECOUrl?.trim();
   if (!ecoUrl) return "";
   try {
@@ -80,11 +76,25 @@ function deriveOpeningName(game: ParsedGame) {
   }
 }
 
-export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; format: Format; style: ArtStyle; moveLimit?: number }>(function ChessArtCanvas(
-  { pgn, format, style, moveLimit },
-  ref
-) {
+export const ChessArtCanvas = forwardRef<
+  ChessArtCanvasHandle,
+  {
+    pgn: string;
+    format: Format;
+    style: ArtStyle;
+    onMoveChange?: (n: number) => void;
+    onPlayEnd?: () => void;
+  }
+>(function ChessArtCanvas({ pgn, format, style, onMoveChange, onPlayEnd }, ref) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isPlayingRef = useRef(false);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Keep latest callbacks in refs so the animation closure always sees current values
+  const onMoveChangeRef = useRef(onMoveChange);
+  const onPlayEndRef = useRef(onPlayEnd);
+  onMoveChangeRef.current = onMoveChange;
+  onPlayEndRef.current = onPlayEnd;
 
   const { width, height } = formatDimensions(format);
 
@@ -96,13 +106,24 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
     }
   }, [pgn]);
 
-  const buildPosterOptions = (game: ReturnType<typeof parsePgn>, limit?: number) => {
+  // Keep latest parsed/style/format in refs for use inside animation closures
+  const parsedRef = useRef(parsed);
+  parsedRef.current = parsed;
+  const styleRef = useRef(style);
+  styleRef.current = style;
+  const widthRef = useRef(width);
+  widthRef.current = width;
+  const heightRef = useRef(height);
+  heightRef.current = height;
+
+  const buildPosterOptions = (game: ParsedGame, moveLimit?: number) => {
     const tags = game.tags;
     const white = tags.White?.trim() || "White";
     const black = tags.Black?.trim() || "Black";
+    const { width: w, height: h } = formatDimensions(format);
     return {
-      width,
-      height,
+      width: w,
+      height: h,
       style,
       poster: {
         title: deriveTitle(game),
@@ -119,15 +140,122 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
         termination: tags.Termination?.trim() || "",
         movesText: buildAllMoves(game),
       },
-      ...(limit !== undefined ? { moveLimit: limit } : {}),
+      ...(moveLimit !== undefined ? { moveLimit } : {}),
     };
+  };
+
+  // Board geometry — must exactly match drawChessArt's layout calculations.
+  const getBoardGeometry = (w: number, h: number) => {
+    const minDim = Math.min(w, h);
+    const margin = Math.round(minDim * 0.06);
+    const headerH = Math.round(minDim * 0.16);
+    const footerH = Math.round(minDim * 0.23);
+    const availH = h - margin * 2 - headerH - footerH;
+    const availW = w - margin * 2;
+    const boardSize = Math.floor(Math.min(availW, availH));
+    const x0 = Math.floor((w - boardSize) / 2);
+    const y0 = margin + headerH + Math.floor((availH - boardSize) / 2);
+    const squareSize = boardSize / 8;
+    return { x0, y0, squareSize };
+  };
+
+  const renderAtMove = (moveLimit: number) => {
+    const canvas = canvasRef.current;
+    const game = parsedRef.current;
+    if (!canvas || !game) return;
+    drawChessArt(canvas, game.moves, buildPosterOptions(game, moveLimit));
+  };
+
+  const stopAnimation = () => {
+    isPlayingRef.current = false;
+    if (animFrameRef.current !== null) {
+      cancelAnimationFrame(animFrameRef.current);
+      clearTimeout(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+  };
+
+  const scheduleNext = (moveIndex: number, speed: number) => {
+    const game = parsedRef.current;
+    if (!isPlayingRef.current || !game) return;
+
+    if (moveIndex >= game.moves.length) {
+      isPlayingRef.current = false;
+      onPlayEndRef.current?.();
+      return;
+    }
+
+    // Render all previous moves as a static base
+    renderAtMove(moveIndex);
+
+    const drawDuration = Math.min(250, Math.max(15, speed * 0.5));
+    const startTime = performance.now();
+
+    const animate = () => {
+      if (!isPlayingRef.current) return;
+
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(1, elapsed / drawDuration);
+
+      // Re-render static base each frame to keep a clean canvas
+      renderAtMove(moveIndex);
+
+      const canvas = canvasRef.current;
+      const g = parsedRef.current;
+      if (!canvas || !g) return;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const { x0, y0, squareSize } = getBoardGeometry(widthRef.current, heightRef.current);
+      const tokens = getTokens(styleRef.current);
+
+      drawMoveAtProgress(
+        ctx,
+        g.moves[moveIndex],
+        moveIndex,
+        g.moves.length,
+        x0,
+        y0,
+        squareSize,
+        styleRef.current,
+        tokens,
+        progress,
+      );
+
+      if (progress < 1) {
+        animFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        // Move fully drawn — notify scrubber, then schedule next
+        onMoveChangeRef.current?.(moveIndex + 1);
+        animFrameRef.current = setTimeout(() => {
+          scheduleNext(moveIndex + 1, speed);
+        }, 0) as unknown as number;
+      }
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
   };
 
   const render = () => {
     const canvas = canvasRef.current;
     if (!canvas || !parsed || parsed.moves.length === 0) return;
-    drawChessArt(canvas, parsed.moves, buildPosterOptions(parsed, moveLimit));
+    drawChessArt(canvas, parsed.moves, buildPosterOptions(parsed));
   };
+
+  // Re-render when pgn / format / style changes (also stops any in-progress animation)
+  useEffect(() => {
+    stopAnimation();
+    if (!parsed || parsed.moves.length === 0) return;
+    render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pgn, format, style]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopAnimation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const downloadPng = () => {
     const canvas = canvasRef.current;
@@ -135,7 +263,6 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
     let fresh: ReturnType<typeof parsePgn>;
     try {
       fresh = parsePgn(pgn);
-      // Download always uses the full game — no moveLimit
       drawChessArt(canvas, fresh.moves, buildPosterOptions(fresh));
     } catch {
       return;
@@ -160,13 +287,22 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
     }, "image/png");
   };
 
-  useImperativeHandle(ref, () => ({ downloadPng }), [pgn, format, style]);
+  const play = (from: number, speed: number) => {
+    stopAnimation();
+    isPlayingRef.current = true;
+    scheduleNext(from, speed);
+  };
 
-  useEffect(() => {
-    if (!parsed || parsed.moves.length === 0) return;
-    render();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pgn, format, style, moveLimit]);
+  const pause = () => {
+    stopAnimation();
+  };
+
+  const seekTo = (n: number) => {
+    stopAnimation();
+    renderAtMove(n);
+  };
+
+  useImperativeHandle(ref, () => ({ downloadPng, play, pause, seekTo }), [pgn, format, style]);
 
   return (
     <div className="relative">
@@ -179,7 +315,6 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
           style={{ width: "100%", height: "auto", maxWidth: Math.min(width, 720) }}
           className="rounded-xl"
         />
-        {/* Soft vignette to dissolve canvas edges into the background */}
         <div
           className="pointer-events-none absolute inset-3 rounded-xl"
           style={{

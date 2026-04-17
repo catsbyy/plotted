@@ -44,9 +44,6 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackMove, setPlaybackMove] = useState<number | null>(null); // null = show full game
   const [speed, setSpeed] = useState(300); // ms per move
-  const isPlayingRef = useRef(false);
-  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const speedRef = useRef(300);
 
   useEffect(() => {
     const saved = localStorage.getItem("plotted-theme") as "dark" | "light" | null;
@@ -64,9 +61,6 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
     document.documentElement.classList.toggle("light", next === "light");
   };
 
-  // Keep speedRef in sync so the timeout closure always reads the latest speed
-  speedRef.current = speed;
-
   useMemo(() => {
     try {
       const g = parsePgn(pgn);
@@ -78,56 +72,27 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
     }
   }, [pgn]);
 
-  // Stop playback and reset to full game when PGN/format/style changes
+  // Stop playback and reset when PGN/format/style changes
   useEffect(() => {
-    isPlayingRef.current = false;
-    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    canvasRef.current?.pause();
     setIsPlaying(false);
     setPlaybackMove(null);
   }, [pgn, format, style]);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isPlayingRef.current = false;
-      if (animTimerRef.current) clearTimeout(animTimerRef.current);
-    };
-  }, []);
-
-  const scheduleNext = (n: number) => {
-    if (!isPlayingRef.current) return;
-    if (n >= movesCount) {
-      isPlayingRef.current = false;
-      setIsPlaying(false);
-      setPlaybackMove(movesCount);
-      return;
-    }
-    animTimerRef.current = setTimeout(() => {
-      const next = n + 1;
-      setPlaybackMove(next);
-      scheduleNext(next);
-    }, speedRef.current);
-  };
-
   const togglePlayback = () => {
     if (isPlaying) {
-      // Pause
-      isPlayingRef.current = false;
+      canvasRef.current?.pause();
       setIsPlaying(false);
-      if (animTimerRef.current) clearTimeout(animTimerRef.current);
     } else {
-      // Play — restart from beginning if at end, otherwise continue from current position
       const startFrom = (playbackMove ?? movesCount) >= movesCount ? 0 : (playbackMove ?? 0);
-      isPlayingRef.current = true;
       setIsPlaying(true);
       setPlaybackMove(startFrom);
-      scheduleNext(startFrom);
+      canvasRef.current?.play(startFrom, speed);
     }
   };
 
   const handleScrub = (n: number) => {
-    isPlayingRef.current = false;
-    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    canvasRef.current?.seekTo(n);
     setIsPlaying(false);
     setPlaybackMove(n);
   };
@@ -354,7 +319,17 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
               <p className="text-xs text-zinc-600 dark:text-zinc-300">Opening name is inferred from PGN tags.</p>
             </div>
             <div className="mt-3">
-              <ChessArtCanvas ref={canvasRef} pgn={pgn} format={format} style={style} moveLimit={playbackMove ?? undefined} />
+              <ChessArtCanvas
+                ref={canvasRef}
+                pgn={pgn}
+                format={format}
+                style={style}
+                onMoveChange={(n) => setPlaybackMove(n)}
+                onPlayEnd={() => {
+                  setIsPlaying(false);
+                  setPlaybackMove(movesCount);
+                }}
+              />
             </div>
           </section>
         </div>
