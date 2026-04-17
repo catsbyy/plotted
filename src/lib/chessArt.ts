@@ -98,7 +98,7 @@ export type PosterMeta = {
   movesText?: string;
 };
 
-export type ArtStyle = "neon" | "ink" | "blueprint" | "watercolor" | "mono";
+export type ArtStyle = "neon" | "ink" | "blueprint" | "watercolor" | "mono" | "retro";
 
 export type Format = "square" | "portrait" | "landscape";
 
@@ -332,6 +332,49 @@ function getTokens(style: ArtStyle): StyleTokens {
       };
     }
 
+    case "retro": {
+      return {
+        bgBase: "#1a1a2e",
+        bgGradientInner: "rgba(0, 0, 0, 0)",
+        bgGradientOuter: "rgba(0, 0, 0, 0)",
+        boardLight: "rgba(255, 255, 255, 0.04)",
+        boardDark: "rgba(0, 0, 0, 0.0)",
+        boardGrid: "rgba(255, 255, 255, 0.08)",
+        boardBorder: "rgba(255, 255, 255, 0.15)",
+        boardLabel: "rgba(255, 255, 255, 0.40)",
+        compositeOperation: "source-over",
+        whiteBase: { r: 0, g: 240, b: 180 },
+        blackBase: { r: 240, g: 80, b: 160 },
+        shadowBlurScale: 0,
+        opacityRange: [0.55, 1.0],
+        gradientOpening: "#00f0b4",
+        gradientMiddle: "#f050a0",
+        gradientEnd: "#f0c000",
+        captureFill: (p) => `rgba(240, 200, 0, ${(0.70 + p * 0.30).toFixed(3)})`,
+        captureShadow: () => "rgba(0, 0, 0, 0)",
+        castleColour: "rgba(0, 240, 180, 0.90)",
+        castleShadow: "rgba(0, 0, 0, 0)",
+        mateColour: "rgba(240, 200, 0, 1.0)",
+        mateShadow: "rgba(0, 0, 0, 0)",
+        mateStroke: "rgba(0, 0, 0, 0)",
+        titleColour: "rgba(0, 240, 180, 0.95)",
+        subtitleColour: "rgba(255, 255, 255, 0.55)",
+        chipBg: "rgba(0, 240, 180, 0.10)",
+        chipBorder: "rgba(0, 240, 180, 0.30)",
+        chipText: "rgba(0, 240, 180, 0.90)",
+        footerPrimaryColour: "rgba(255, 255, 255, 0.75)",
+        footerBodyColour: "rgba(255, 255, 255, 0.45)",
+        posterBorderColour: "rgba(0, 240, 180, 0.20)",
+        legendBg: "rgba(255, 255, 255, 0.04)",
+        legendBorder: "rgba(0, 240, 180, 0.20)",
+        legendTitleColour: "rgba(0, 240, 180, 0.90)",
+        legendText: "rgba(255, 255, 255, 0.70)",
+        lineWidthMultiplier: 1.4,
+        knightBendBase: 0.7,
+        boardOverlay: "rgba(0, 0, 0, 0)",
+      };
+    }
+
     case "mono": {
       return {
         bgBase: "#f8f8f8",
@@ -430,6 +473,8 @@ const PLAYER_GRADIENTS: Record<ArtStyle, [string, string, string, string]> = {
   blueprint:  ["#e0f2fe", "#7dd3fc", "#7dd3fc", "#2563eb"],
   // Mono: flat dark — no colour gradient, no player distinction
   mono:       ["#141414", "#141414", "#141414", "#141414"],
+  // Retro: teal → amber (white), magenta → amber (black) — both converge on amber endgame
+  retro:      ["#00f0b4", "#f0c000", "#f050a0", "#f0c000"],
 };
 
 function getMoveGradientRgb(progress: number, color: "w" | "b", style: ArtStyle): RGB {
@@ -564,6 +609,26 @@ function drawKnightArc(
   ctx.moveTo(start.x, start.y);
   ctx.quadraticCurveTo(cx, cy, end.x, end.y);
   ctx.stroke();
+}
+
+function drawPixelLine(
+  ctx: CanvasRenderingContext2D,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  pixelSize: number,
+) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const steps = Math.max(1, Math.round(Math.hypot(dx, dy) / pixelSize));
+  ctx.save();
+  ctx.shadowBlur = 0;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const x = Math.round((start.x + dx * t) / pixelSize) * pixelSize;
+    const y = Math.round((start.y + dy * t) / pixelSize) * pixelSize;
+    ctx.fillRect(x - pixelSize / 2, y - pixelSize / 2, pixelSize, pixelSize);
+  }
+  ctx.restore();
 }
 
 function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, tokens: StyleTokens, style: ArtStyle) {
@@ -957,31 +1022,47 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
       const bend = squareSize * (tokens.knightBendBase + (i % 3) * 0.18) * direction;
       drawKnightArc(ctx, start, end, bend);
     } else {
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
+      if (style === "retro") {
+        const pixelSize = Math.max(4, Math.round(squareSize * 0.08));
+        ctx.fillStyle = stroke;
+        drawPixelLine(ctx, start, end, pixelSize);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+      }
     }
 
     if (m.capture) {
       ctx.save();
-      ctx.shadowBlur = Math.max(10, squareSize * 0.25);
-      ctx.shadowColor = getMoveGradient(progress, 0.9, m.color, style);
-      ctx.fillStyle = getMoveGradient(progress, 0.75, m.color, style);
-      ctx.beginPath();
-      ctx.arc(end.x, end.y, squareSize * 0.14, 0, Math.PI * 2);
-      ctx.fill();
+      if (style === "retro") {
+        const s = squareSize * 0.18;
+        ctx.fillStyle = tokens.captureFill(progress);
+        ctx.fillRect(end.x - s, end.y - s, s * 2, s * 2);
+      } else {
+        ctx.shadowBlur = Math.max(10, squareSize * 0.25);
+        ctx.shadowColor = getMoveGradient(progress, 0.9, m.color, style);
+        ctx.fillStyle = getMoveGradient(progress, 0.75, m.color, style);
+        ctx.beginPath();
+        ctx.arc(end.x, end.y, squareSize * 0.14, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
 
     if (m.castle) {
       ctx.save();
-      ctx.shadowBlur = Math.max(10, squareSize * 0.22);
-      ctx.shadowColor = tokens.castleShadow;
-      ctx.fillStyle = tokens.castleColour;
       const s = squareSize * 0.16;
-      roundedRectPath(ctx, end.x - s, end.y - s, s * 2, s * 2, s * 0.55);
-      ctx.fill();
+      ctx.fillStyle = tokens.castleColour;
+      if (style === "retro") {
+        ctx.fillRect(end.x - s, end.y - s, s * 2, s * 2);
+      } else {
+        ctx.shadowBlur = Math.max(10, squareSize * 0.22);
+        ctx.shadowColor = tokens.castleShadow;
+        roundedRectPath(ctx, end.x - s, end.y - s, s * 2, s * 2, s * 0.55);
+        ctx.fill();
+      }
       ctx.restore();
     }
 
