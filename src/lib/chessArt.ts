@@ -379,12 +379,23 @@ function getTokens(style: ArtStyle): StyleTokens {
   }
 }
 
-function getMoveGradientRgb(progress: number, tokens: StyleTokens): RGB {
-  return makeGradRgb(tokens.gradientOpening, tokens.gradientMiddle, tokens.gradientEnd)(progress);
+const PLAYER_GRADIENTS: Record<ArtStyle, [string, string, string, string]> = {
+  neon:       ["#2563eb", "#7c3aed", "#d97706", "#dc2626"],
+  ink:        ["#1e3a8a", "#6b21a8", "#92400e", "#7f1d1d"],
+  // Watercolour: same gradient both players — distinction comes from multiply layering, not hue
+  watercolor: ["#bfdbfe", "#ddd6fe", "#ddd6fe", "#fecaca"],
+  blueprint:  ["#e0f2fe", "#7dd3fc", "#7dd3fc", "#2563eb"],
+};
+
+function getMoveGradientRgb(progress: number, color: "w" | "b", style: ArtStyle): RGB {
+  const t = Math.min(1, Math.max(0, progress));
+  const [wOpen, wEnd, bOpen, bEnd] = PLAYER_GRADIENTS[style];
+  const [openHex, endHex] = color === "w" ? [wOpen, wEnd] : [bOpen, bEnd];
+  return lerpRgb(hexToRgb(openHex), hexToRgb(endHex), t);
 }
 
-export function getMoveGradient(progress: number, alpha: number, tokens: StyleTokens) {
-  return rgbToCss(getMoveGradientRgb(progress, tokens), alpha);
+export function getMoveGradient(progress: number, alpha: number, color: "w" | "b", style: ArtStyle) {
+  return rgbToCss(getMoveGradientRgb(progress, color, style), alpha);
 }
 
 export function squareToCenter(square: string, boardX: number, boardY: number, squareSize: number) {
@@ -510,7 +521,7 @@ function drawKnightArc(
   ctx.stroke();
 }
 
-function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, tokens: StyleTokens) {
+function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, tokens: StyleTokens, style: ArtStyle) {
   ctx.save();
   roundedRectPath(ctx, x, y, w, h, Math.max(10, h * 0.18));
   ctx.fillStyle = tokens.legendBg;
@@ -523,32 +534,36 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   const padX0 = w * 0.08;
   const padY0 = h * 0.12;
   const titleSize0 = Math.max(11, Math.round(h * 0.18));
-  const barH0 = Math.max(10, Math.round(h * 0.12));
-  const labelSize0 = Math.max(9, Math.round(h * 0.13)); // slightly smaller than before
+  const barH0 = Math.max(8, Math.round(h * 0.096)); // ~80% of previous 0.12
+  const labelSize0 = Math.max(9, Math.round(h * 0.13));
   const itemH0 = Math.max(13, Math.round(h * 0.128));
   const gapTitle0 = h * 0.06;
-  const gapBar0 = h * 0.06;
+  const gapBar0 = h * 0.04;
+  const barGap0 = barH0 * 1.8;
   const gapAfterLine0 = h * 0.10;
 
   const required =
     padY0 * 2 +
     titleSize0 +
     gapTitle0 +
-    barH0 +
-    gapBar0 +
     labelSize0 +
+    gapBar0 +
+    barH0 +
+    barGap0 +
+    barH0 +
     gapAfterLine0 +
-    itemH0 * 5;
+    itemH0 * 3;
   const scale = Math.min(1, h / Math.max(1, required));
 
   const padX = padX0;
   const padY = padY0 * scale;
   const titleSize = Math.max(10, Math.floor(titleSize0 * scale));
-  const barH = Math.max(9, Math.floor(barH0 * scale));
+  const barH = Math.max(7, Math.floor(barH0 * scale));
   const labelSize = Math.max(8, Math.floor(labelSize0 * scale));
   const itemH = Math.max(12, Math.floor(itemH0 * scale));
   const gapTitle = gapTitle0 * scale;
   const gapBar = gapBar0 * scale;
+  const barGap = barH * 1.8;
   const gapAfterLine = gapAfterLine0 * scale;
 
   const x0 = x + padX;
@@ -561,26 +576,53 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   ctx.fillText("Legend", x0, y0);
   y0 += titleSize + gapTitle;
 
-  // Gradient bar (time progression)
-  const barW = w - padX * 2;
-  const g = ctx.createLinearGradient(x0, 0, x0 + barW, 0);
-  g.addColorStop(0, getMoveGradient(0, 1, tokens));
-  g.addColorStop(0.5, getMoveGradient(0.5, 1, tokens));
-  g.addColorStop(1, getMoveGradient(1, 1, tokens));
-  roundedRectPath(ctx, x0, y0, barW, barH, barH / 2);
-  ctx.fillStyle = g;
+  // Shared label above both gradient bars
+  ctx.fillStyle = tokens.legendText;
+  ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  ctx.textBaseline = "top";
+  ctx.fillText("Opening → Endgame", x0, y0);
+  y0 += labelSize + gapBar;
+
+  // Per-player gradient colours
+  const [wOpen, wEnd, bOpen, bEnd] = PLAYER_GRADIENTS[style];
+
+  // Measure "White"/"Black" label width to align the bar
+  ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+  const sideW = Math.max(ctx.measureText("White").width, ctx.measureText("Black").width) + w * 0.04;
+  const gradBarX = x0 + sideW;
+  const gradBarW = w - padX * 2 - sideW;
+
+  // White player bar
+  const whiteGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
+  whiteGrad.addColorStop(0, wOpen);
+  whiteGrad.addColorStop(1, wEnd);
+  roundedRectPath(ctx, gradBarX, y0, gradBarW, barH, barH / 2);
+  ctx.fillStyle = whiteGrad;
   ctx.fill();
   ctx.strokeStyle = tokens.boardBorder;
   ctx.lineWidth = 1;
   ctx.stroke();
-  y0 += barH + gapBar;
-
   ctx.fillStyle = tokens.legendText;
-  ctx.font = `${labelSize}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-  ctx.fillText("Opening → Endgame", x0, y0);
-  y0 += labelSize + gapAfterLine;
+  ctx.textBaseline = "middle";
+  ctx.fillText("White", x0, y0 + barH / 2);
+  y0 += barH + barGap;
 
-  // Items (strict line-height to avoid overlap)
+  // Black player bar
+  const blackGrad = ctx.createLinearGradient(gradBarX, 0, gradBarX + gradBarW, 0);
+  blackGrad.addColorStop(0, bOpen);
+  blackGrad.addColorStop(1, bEnd);
+  roundedRectPath(ctx, gradBarX, y0, gradBarW, barH, barH / 2);
+  ctx.fillStyle = blackGrad;
+  ctx.fill();
+  ctx.strokeStyle = tokens.boardBorder;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = tokens.legendText;
+  ctx.textBaseline = "middle";
+  ctx.fillText("Black", x0, y0 + barH / 2);
+  y0 += barH + gapAfterLine;
+
+  // Items: Capture, Castling, Checkmate only
   const iconS = Math.max(10, Math.round(itemH * 0.7));
   const iconX = x0;
   const textX = x0 + iconS + w * 0.06;
@@ -594,36 +636,6 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
     ctx.fillText(text, textX, yy + itemH / 2);
     ctx.restore();
   };
-
-  drawItem(y0, () => {
-    const wb = tokens.whiteBase;
-    ctx.shadowBlur = Math.max(8, h * 0.14);
-    ctx.shadowColor = rgbToCss(wb, 0.6);
-    ctx.strokeStyle = rgbToCss(wb, 0.7);
-    ctx.lineWidth = Math.max(2, iconS * 0.22);
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(iconX, y0 + itemH * 0.7);
-    ctx.lineTo(iconX + iconS, y0 + itemH * 0.25);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }, "White moves");
-  y0 += itemH;
-
-  drawItem(y0, () => {
-    const bb = tokens.blackBase;
-    ctx.shadowBlur = Math.max(8, h * 0.14);
-    ctx.shadowColor = rgbToCss(bb, 0.5);
-    ctx.strokeStyle = rgbToCss(bb, 0.55);
-    ctx.lineWidth = Math.max(2, iconS * 0.22);
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(iconX, y0 + itemH * 0.7);
-    ctx.lineTo(iconX + iconS, y0 + itemH * 0.25);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }, "Black moves");
-  y0 += itemH;
 
   drawItem(y0, () => {
     ctx.shadowBlur = Math.max(10, h * 0.16);
@@ -646,7 +658,6 @@ function drawLegend(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
   }, "Castling");
   y0 += itemH;
 
-  // Checkmate
   drawItem(y0, () => {
     const cx = iconX + iconS * 0.5;
     const cy = y0 + itemH * 0.5;
@@ -801,7 +812,8 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
   canvas.width  = width;
   canvas.height = height;
 
-  const tokens = getTokens(options.style ?? "neon");
+  const style = options.style ?? "neon";
+  const tokens = getTokens(style);
 
   fillBackground(ctx, width, height, tokens);
 
@@ -822,7 +834,7 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
 
     const footerMaxW = width - margin * 2 - legendW - gap;
     drawPosterText(ctx, width, height, meta, margin, headerH, footerH, footerMaxW, tokens);
-    drawLegend(ctx, legendX, legendY, legendW, legendH, tokens);
+    drawLegend(ctx, legendX, legendY, legendW, legendH, tokens, style);
   }
 
   const total = moves.length;
@@ -842,12 +854,19 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
 
     ctx.lineWidth = pieceWidth(m.piece, squareSize) * tokens.lineWidthMultiplier;
 
-    // White/Black differentiation while preserving time progression:
-    // we tint the time-gradient towards a side-specific base colour.
-    const colorBase = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
-    const mixed = lerpRgb(getMoveGradientRgb(progress, tokens), colorBase, 0.30);
-    const stroke = rgbToCss(mixed, opacity);
-    const glow = rgbToCss(mixed, Math.min(1, opacity * 0.85));
+    let gradRgb: RGB;
+    if (style === "watercolor") {
+      // Original approach: single 3-stop gradient tinted by player base colour.
+      // Multiply blend makes separate warm/cool gradients muddy; the whiteBase/blackBase
+      // tint at 30% gives warm/cool distinction without hue clashes.
+      const colorBase = m.color === "w" ? tokens.whiteBase : tokens.blackBase;
+      const wcGrad = makeGradRgb("#bfdbfe", "#ddd6fe", "#fecaca")(progress);
+      gradRgb = lerpRgb(wcGrad, colorBase, 0.30);
+    } else {
+      gradRgb = getMoveGradientRgb(progress, m.color, style);
+    }
+    const stroke = rgbToCss(gradRgb, opacity);
+    const glow = rgbToCss(gradRgb, Math.min(1, opacity * 0.85));
 
     ctx.shadowColor = glow;
     const blurBase = Math.max(6, squareSize * 0.15);
@@ -867,8 +886,8 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     if (m.capture) {
       ctx.save();
       ctx.shadowBlur = Math.max(10, squareSize * 0.25);
-      ctx.shadowColor = tokens.captureShadow(progress);
-      ctx.fillStyle = tokens.captureFill(progress);
+      ctx.shadowColor = getMoveGradient(progress, 0.9, m.color, style);
+      ctx.fillStyle = getMoveGradient(progress, 0.75, m.color, style);
       ctx.beginPath();
       ctx.arc(end.x, end.y, squareSize * 0.14, 0, Math.PI * 2);
       ctx.fill();
@@ -908,7 +927,7 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
       ctx.closePath();
       ctx.fill();
 
-      ctx.strokeStyle = tokens.mateStroke;
+      ctx.strokeStyle = getMoveGradient(progress, 0.55, m.color, style);
       ctx.lineWidth = Math.max(1, squareSize * 0.02);
       ctx.stroke();
       ctx.restore();
