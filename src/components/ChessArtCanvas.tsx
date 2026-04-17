@@ -80,8 +80,8 @@ function deriveOpeningName(game: ParsedGame) {
   }
 }
 
-export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; format: Format; style: ArtStyle }>(function ChessArtCanvas(
-  { pgn, format, style },
+export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; format: Format; style: ArtStyle; moveLimit?: number }>(function ChessArtCanvas(
+  { pgn, format, style, moveLimit },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -96,73 +96,48 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
     }
   }, [pgn]);
 
-  const render = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    if (!parsed || parsed.moves.length === 0) return;
-
-    const tags = parsed.tags;
+  const buildPosterOptions = (game: ReturnType<typeof parsePgn>, limit?: number) => {
+    const tags = game.tags;
     const white = tags.White?.trim() || "White";
     const black = tags.Black?.trim() || "Black";
-    const result = humanReadableResult(tags.Result ?? "", white, black);
-    const termination = tags.Termination?.trim() || "";
-    const date = formatDateForPoster(tags.Date || tags.UTCDate || "");
-    const openingName = deriveOpeningName(parsed);
-    const subtitle = [openingName || tags.ECO?.trim(), tags.TimeControl?.trim() ? `${tags.TimeControl}s` : ""]
-      .filter(Boolean)
-      .join(" • ");
-
-    drawChessArt(canvas, parsed.moves, {
+    return {
       width,
       height,
       style,
       poster: {
-        title: deriveTitle(parsed),
-        subtitle,
+        title: deriveTitle(game),
+        subtitle: [
+          deriveOpeningName(game) || tags.ECO?.trim(),
+          tags.TimeControl?.trim() ? `${tags.TimeControl}s` : "",
+        ]
+          .filter(Boolean)
+          .join(" • "),
         white,
         black,
-        result,
-        date,
-        termination,
-        movesText: buildAllMoves(parsed),
+        result: humanReadableResult(tags.Result ?? "", white, black),
+        date: formatDateForPoster(tags.Date || tags.UTCDate || ""),
+        termination: tags.Termination?.trim() || "",
+        movesText: buildAllMoves(game),
       },
-    });
+      ...(limit !== undefined ? { moveLimit: limit } : {}),
+    };
+  };
+
+  const render = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !parsed || parsed.moves.length === 0) return;
+    drawChessArt(canvas, parsed.moves, buildPosterOptions(parsed, moveLimit));
   };
 
   const downloadPng = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Render a fresh frame at the requested resolution, then export via Blob
-    // to avoid flaky behavior with large data URLs.
     let fresh: ReturnType<typeof parsePgn>;
     try {
       fresh = parsePgn(pgn);
-      drawChessArt(canvas, fresh.moves, {
-        width,
-        height,
-        style,
-        poster: {
-          title: deriveTitle(fresh),
-          subtitle: [
-            deriveOpeningName(fresh) || fresh.tags.ECO?.trim(),
-            fresh.tags.TimeControl?.trim() ? `${fresh.tags.TimeControl}s` : "",
-          ]
-            .filter(Boolean)
-            .join(" • "),
-          white: fresh.tags.White?.trim() || "White",
-          black: fresh.tags.Black?.trim() || "Black",
-          result: humanReadableResult(
-            fresh.tags.Result ?? "",
-            fresh.tags.White?.trim() ?? "White",
-            fresh.tags.Black?.trim() ?? "Black",
-          ),
-          date: formatDateForPoster(fresh.tags.Date || fresh.tags.UTCDate || ""),
-          termination: fresh.tags.Termination?.trim() || "",
-          movesText: buildAllMoves(fresh),
-        },
-      });
+      // Download always uses the full game — no moveLimit
+      drawChessArt(canvas, fresh.moves, buildPosterOptions(fresh));
     } catch {
-      // If parsing fails, do nothing.
       return;
     }
 
@@ -191,7 +166,7 @@ export const ChessArtCanvas = forwardRef<ChessArtCanvasHandle, { pgn: string; fo
     if (!parsed || parsed.moves.length === 0) return;
     render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pgn, format, style]);
+  }, [pgn, format, style, moveLimit]);
 
   return (
     <div className="relative">

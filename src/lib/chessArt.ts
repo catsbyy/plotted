@@ -120,6 +120,7 @@ export type DrawOptions = {
   padding?: number;
   style?: ArtStyle; // default "neon"
   poster?: PosterMeta;
+  moveLimit?: number; // if set, only draw the first N moves
 };
 
 type RGB = { r: number; g: number; b: number };
@@ -979,6 +980,7 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
 
   const style = options.style ?? "neon";
   const tokens = getTokens(style);
+  const visibleMoves = options.moveLimit !== undefined ? moves.slice(0, options.moveLimit) : moves;
 
   fillBackground(ctx, width, height, tokens);
 
@@ -1002,14 +1004,14 @@ export function drawChessArt(canvas: HTMLCanvasElement, moves: Move[], options: 
     drawLegend(ctx, legendX, legendY, legendW, legendH, tokens, style);
   }
 
-  const total = moves.length;
+  const total = visibleMoves.length;
   ctx.save();
   ctx.globalCompositeOperation = tokens.compositeOperation;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (let i = 0; i < moves.length; i++) {
-    const m = moves[i];
+  for (let i = 0; i < visibleMoves.length; i++) {
+    const m = visibleMoves[i];
     const progress = total <= 1 ? 1 : i / (total - 1);
     const [minOp, maxOp] = tokens.opacityRange;
     const opacity = minOp + progress * (maxOp - minOp);

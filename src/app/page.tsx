@@ -40,6 +40,14 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
   const [movesCount, setMovesCount] = useState<number>(0);
   const [pgnHelpOpen, setPgnHelpOpen] = useState(false);
 
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackMove, setPlaybackMove] = useState<number | null>(null); // null = show full game
+  const [speed, setSpeed] = useState(300); // ms per move
+  const isPlayingRef = useRef(false);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speedRef = useRef(300);
+
   useEffect(() => {
     const saved = localStorage.getItem("plotted-theme") as "dark" | "light" | null;
     const initial = saved ?? "dark";
@@ -56,6 +64,9 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
     document.documentElement.classList.toggle("light", next === "light");
   };
 
+  // Keep speedRef in sync so the timeout closure always reads the latest speed
+  speedRef.current = speed;
+
   useMemo(() => {
     try {
       const g = parsePgn(pgn);
@@ -66,6 +77,60 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
       setError(e instanceof Error ? e.message : "Failed to parse PGN.");
     }
   }, [pgn]);
+
+  // Stop playback and reset to full game when PGN/format/style changes
+  useEffect(() => {
+    isPlayingRef.current = false;
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    setIsPlaying(false);
+    setPlaybackMove(null);
+  }, [pgn, format, style]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isPlayingRef.current = false;
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    };
+  }, []);
+
+  const scheduleNext = (n: number) => {
+    if (!isPlayingRef.current) return;
+    if (n >= movesCount) {
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setPlaybackMove(movesCount);
+      return;
+    }
+    animTimerRef.current = setTimeout(() => {
+      const next = n + 1;
+      setPlaybackMove(next);
+      scheduleNext(next);
+    }, speedRef.current);
+  };
+
+  const togglePlayback = () => {
+    if (isPlaying) {
+      // Pause
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    } else {
+      // Play — restart from beginning if at end, otherwise continue from current position
+      const startFrom = (playbackMove ?? movesCount) >= movesCount ? 0 : (playbackMove ?? 0);
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      setPlaybackMove(startFrom);
+      scheduleNext(startFrom);
+    }
+  };
+
+  const handleScrub = (n: number) => {
+    isPlayingRef.current = false;
+    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    setIsPlaying(false);
+    setPlaybackMove(n);
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(80%_80%_at_50%_20%,rgba(99,102,241,0.07),rgba(0,0,0,0))] px-4 py-8 text-zinc-900 dark:bg-[radial-gradient(80%_80%_at_50%_20%,rgba(99,102,241,0.22),rgba(0,0,0,0))] dark:text-zinc-100 sm:px-6 sm:py-10 md:px-10">
@@ -188,7 +253,8 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
               )}
             </div>
 
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="mt-3 flex flex-col gap-3">
+              {/* Format + Style selectors */}
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Format</label>
@@ -219,6 +285,52 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
                 </div>
               </div>
 
+              {/* Playback controls */}
+              {movesCount > 0 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={togglePlayback}
+                    aria-label={isPlaying ? "Pause" : "Play"}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+                  >
+                    {isPlaying ? (
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                        <rect x="1.5" y="1.5" width="2.5" height="7" rx="0.5" />
+                        <rect x="6" y="1.5" width="2.5" height="7" rx="0.5" />
+                      </svg>
+                    ) : (
+                      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+                        <path d="M2 1.5l7 3.5-7 3.5V1.5z" />
+                      </svg>
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={movesCount}
+                    value={playbackMove ?? movesCount}
+                    onChange={(e) => handleScrub(Number(e.target.value))}
+                    className="flex-1 accent-indigo-500"
+                    style={{ touchAction: "none" }}
+                  />
+                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                    {playbackMove ?? movesCount}/{movesCount}
+                  </span>
+                  <select
+                    value={speed}
+                    onChange={(e) => setSpeed(Number(e.target.value))}
+                    className="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800 shadow-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:focus:ring-indigo-500/20"
+                  >
+                    <option value={600}>Slow</option>
+                    <option value={300}>Normal</option>
+                    <option value={100}>Fast</option>
+                    <option value={30}>Very Fast</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Download */}
               <button
                 type="button"
                 onClick={() => canvasRef.current?.downloadPng()}
@@ -242,7 +354,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
               <p className="text-xs text-zinc-600 dark:text-zinc-300">Opening name is inferred from PGN tags.</p>
             </div>
             <div className="mt-3">
-              <ChessArtCanvas ref={canvasRef} pgn={pgn} format={format} style={style} />
+              <ChessArtCanvas ref={canvasRef} pgn={pgn} format={format} style={style} moveLimit={playbackMove ?? undefined} />
             </div>
           </section>
         </div>
