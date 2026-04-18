@@ -85,3 +85,13 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
 }
+
+select option {
+  background-color: #1a1a2a;
+  color: #e4e4e7;
+}
+
+:root.light select option {
+  background-color: #ffffff;
+  color: #18181b;
+}
