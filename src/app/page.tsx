@@ -4,6 +4,72 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChessArtCanvas, type ChessArtCanvasHandle } from "@/components/ChessArtCanvas";
 import { parsePgn, type ArtStyle, type Format } from "@/lib/chessArt";
 
+const SAMPLE_GAMES: { label: string; pgn: string }[] = [
+  {
+    label: "Immortal Game",
+    pgn: `[Event "London"]
+[Site "London ENG"]
+[Date "1851.06.21"]
+[Round "?"]
+[White "Adolf Anderssen"]
+[Black "Lionel Kieseritzky"]
+[Result "1-0"]
+[ECO "C33"]
+
+1.e4 e5 2.f4 exf4 3.Bc4 Qh4+ 4.Kf1 b5 5.Bxb5 Nf6 6.Nf3 Qh6 7.d3 Nh5 8.Nh4 Qg5 9.Nf5 c6 10.g4 Nf6 11.Rg1 cxb5 12.h4 Qg6 13.h5 Qg5 14.Qf3 Ng8 15.Bxf4 Qf6 16.Nc3 Bc5 17.Nd5 Qxb2 18.Bd6 Bxg1 19.e5 Qxa1+ 20.Ke2 Na6 21.Nxg7+ Kd8 22.Qf6+ Nxf6 23.Be7# 1-0`,
+  },
+  {
+    label: "Game of the Century",
+    pgn: `[Event "Third Rosenwald Trophy"]
+[Site "New York, NY USA"]
+[Date "1956.10.17"]
+[Round "8"]
+[White "Donald Byrne"]
+[Black "Robert James Fischer"]
+[Result "0-1"]
+[ECO "D92"]
+
+1.Nf3 Nf6 2.c4 g6 3.Nc3 Bg7 4.d4 O-O 5.Bf4 d5 6.Qb3 dxc4 7.Qxc4 c6 8.e4 Nbd7 9.Rd1 Nb6 10.Qc5 Bg4 11.Bg5 Na4 12.Qa3 Nxc3 13.bxc3 Nxe4 14.Bxe7 Qb6 15.Bc4 Nxc3 16.Bc5 Rfe8+ 17.Kf1 Be6 18.Bxb6 Bxc4+ 19.Kg1 Ne2+ 20.Kf1 Nxd4+ 21.Kg1 Ne2+ 22.Kf1 Nc3+ 23.Kg1 axb6 24.Qb4 Ra4 25.Qxb6 Nxd1 26.h3 Rxa2 27.Kh2 Nxf2 28.Re1 Rxe1 29.Qd8+ Bf8 30.Nxe1 Bd5 31.Nf3 Ne4 32.Qb8 b5 33.h4 h5 34.Ne5 Kg7 35.Kg1 Bc5+ 36.Kf1 Ng3+ 37.Ke1 Bb4+ 38.Kd1 Bb3+ 39.Kc1 Ne2+ 40.Kb1 Nc3+ 41.Kc1 Rc2# 0-1`,
+  },
+  {
+    label: "The Opera Game",
+    pgn: `[Event "Paris"]
+[Site "Paris FRA"]
+[Date "1858.??.??"]
+[Round "?"]
+[White "Paul Morphy"]
+[Black "Duke Karl / Count Isouard"]
+[Result "1-0"]
+[EventDate "?"]
+[ECO "C41"]
+[WhiteElo "?"]
+[BlackElo "?"]
+[PlyCount "33"]
+[Link "https://www.chess.com/analysis/game/pgn/4Nk1grfgdC/analysis"]
+
+1. e4 e5 2. Nf3 d6 3. d4 Bg4 {This is a weak move already. — Fischer} 4. dxe5
+Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7 8. Nc3 c6 9. Bg5 {Black is in what's
+like a zugzwang position here. He can't develop the [queen's] knight because the
+pawn is hanging, the bishop is blocked because of the queen. — Fischer} 9... b5
+10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7 14. Rd1 Qe6 15. Bxd7+
+Nxd7 {And now for the memorable checkmating combination:} 16. Qb8+ $3 Nxb8 17.
+Rd8# 1-0`,
+  },
+  {
+    label: "Deep Blue vs Kasparov",
+    pgn: `[Event "IBM Man-Machine, New York USA"]
+[Site "New York, NY USA"]
+[Date "1997.05.11"]
+[Round "6"]
+[White "Deep Blue"]
+[Black "Garry Kasparov"]
+[Result "1-0"]
+[ECO "B17"]
+
+1.e4 c6 2.d4 d5 3.Nc3 dxe4 4.Nxe4 Nd7 5.Ng5 Ngf6 6.Bd3 e6 7.N1f3 h6 8.Nxe6 Qe7 9.O-O fxe6 10.Bg6+ Kd8 11.Bf4 b5 12.a4 Bb7 13.Re1 Nd5 14.Bg3 Kc8 15.axb5 cxb5 16.Qd3 Bc6 17.Bf5 exf5 18.Rxe7 Bxe7 19.c4 1-0`,
+  },
+];
+
 const selectCls =
   "rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800 shadow-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-white/5 dark:text-zinc-100 dark:focus:ring-indigo-500/20";
 
@@ -122,7 +188,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
       canvasRef.current?.pause();
       setIsPlaying(false);
     } else {
-      const startFrom = (playbackMove ?? movesCount) >= movesCount ? 0 : (playbackMove ?? 0);
+      const startFrom = (playbackMove ?? movesCount) >= movesCount ? 0 : playbackMove ?? 0;
       setIsPlaying(true);
       setPlaybackMove(startFrom);
       canvasRef.current?.play(startFrom, speed);
@@ -225,16 +291,25 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
               )}
             </div>
 
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SAMPLE_GAMES.map((game) => (
+                <button
+                  key={game.label}
+                  type="button"
+                  onClick={() => setPgn(game.pgn)}
+                  className="rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs text-zinc-500 transition hover:border-black/20 hover:text-zinc-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400 dark:hover:border-white/20 dark:hover:text-zinc-200"
+                >
+                  {game.label}
+                </button>
+              ))}
+            </div>
+
             <div className="mt-3 flex flex-col gap-3">
               {/* Format + Style selectors */}
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Format</label>
-                  <select
-                    value={format}
-                    onChange={(e) => setFormat(e.target.value as Format)}
-                    className={selectCls}
-                  >
+                  <select value={format} onChange={(e) => setFormat(e.target.value as Format)} className={selectCls}>
                     <option value="square">Square (2048 × 2048)</option>
                     <option value="portrait">Portrait (A4 print)</option>
                     <option value="landscape">Landscape (wallpaper)</option>
@@ -242,11 +317,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
                 </div>
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Style</label>
-                  <select
-                    value={style}
-                    onChange={(e) => setStyle(e.target.value as ArtStyle)}
-                    className={selectCls}
-                  >
+                  <select value={style} onChange={(e) => setStyle(e.target.value as ArtStyle)} className={selectCls}>
                     <option value="neon">Neon</option>
                     <option value="ink">Ink on Paper</option>
                     <option value="blueprint">Blueprint</option>
@@ -289,11 +360,7 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
                   <span className="w-16 shrink-0 text-right text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
                     {playbackMove ?? movesCount}/{movesCount}
                   </span>
-                  <select
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
-                    className={selectCls}
-                  >
+                  <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} className={selectCls}>
                     <option value={600}>Slow</option>
                     <option value={300}>Normal</option>
                     <option value={100}>Fast</option>
@@ -345,24 +412,14 @@ Kg5 Qg2+ 35. Rg4 fxg4 36. Qf7 Qc6 37. b5 Qd7 38. Rxd6 Qxd6 0-1`);
           <span className="text-xs text-zinc-500 dark:text-zinc-400">Plotted © 2026</span>
           <div className="flex items-center gap-3">
             <a
-              href="https://ko-fi.com/catsbyy"
+              href="https://patreon.com/catsbyy"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Support on Ko-fi"
+              aria-label="Support on Patreon"
               className="text-zinc-400 transition hover:text-zinc-200 dark:text-zinc-500 dark:hover:text-zinc-300"
             >
-              {/* Ko-fi cup silhouette with heart punched out via evenodd fill-rule */}
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 241 194"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M15.1975 67.7674C15.1975 37.5285 33.3866 21.164 54.7559 18.4334C70.8987 16.387 90.906 16.1589 114.544 16.1589C151.372 16.1589 160.919 16.6151 174.559 17.9772C206.617 21.1576 225.255 40.937 225.255 69.3577V72.9941C225.255 99.3687 205.932 120.966 179.786 123.234C177.74 130.058 174.559 136.874 170.238 143.698C160.235 159.156 140.228 178.707 103.4 178.707H96.1264C66.1155 178.707 42.9277 165.751 29.0595 142.107C16.7814 121.422 15.1912 98.4563 15.1912 67.7674ZM54.5321 82.3198C54.5321 95.732 62.0332 107.326 71.5807 116.424C77.9478 122.562 87.9515 128.93 94.7685 133.022C96.8147 134.157 98.8611 134.841 101.136 134.841C103.866 134.841 106.134 134.157 107.959 133.022C114.782 128.93 124.779 122.562 130.919 116.424C140.694 107.332 148.195 95.7383 148.195 82.3198C148.195 67.7673 137.286 54.8115 121.599 54.8115C112.28 54.8115 105.912 59.5882 101.136 66.1772C96.8147 59.582 90.2259 54.8115 80.9001 54.8115C64.9855 54.8115 54.5256 67.7673 54.5256 82.3198Z"
-                />
+              <svg width="18" height="18" viewBox="0 0 45.7 50" fill="currentColor" aria-hidden="true">
+                <path d="M45.7,15c0-6.4-5-11.6-10.8-13.5c-7.2-2.3-16.8-2-23.7,1.3C2.7,6.7,0.1,15.4,0,24c-0.1,7.1,0.6,25.8,11.2,26c7.8,0.1,9-10,12.6-14.9c2.6-3.5,5.9-4.4,10-5.5C40.9,27.9,45.7,22.4,45.7,15z" />
               </svg>
             </a>
             <a

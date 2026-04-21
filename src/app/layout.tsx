@@ -19,11 +19,11 @@ export const metadata: Metadata = {
     shortcut: "/plotted-icon.svg",
     apple: "/plotted-icon.svg",
   },
-  title: "Plotted — Chess Game Art",
+  title: "Plotted - Chess Game Art",
   description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
   metadataBase: new URL("https://plottedart.com/"),
   openGraph: {
-    title: "Plotted — Chess Game Art",
+    title: "Plotted - Chess Game Art",
     description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
     url: "https://plottedart.com/",
     siteName: "Plotted",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Plotted — Chess Game Art",
+    title: "Plotted - Chess Game Art",
     description: "Turn any chess game into a poster. Paste a PGN, pick a style, download your art.",
     images: ["/og-image.png"],
   },
