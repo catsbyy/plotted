@@ -22,11 +22,16 @@ export type ChessArtCanvasHandle = {
 
 function humanReadableResult(result: string, white: string, black: string): string {
   switch (result.trim()) {
-    case "1-0":     return `${white} won`;
-    case "0-1":     return `${black} won`;
-    case "1/2-1/2": return "Draw";
-    case "½-½":     return "Draw";
-    default:        return "";
+    case "1-0":
+      return `${white} won`;
+    case "0-1":
+      return `${black} won`;
+    case "1/2-1/2":
+      return "Draw";
+    case "½-½":
+      return "Draw";
+    default:
+      return "";
   }
 }
 
@@ -129,10 +134,7 @@ export const ChessArtCanvas = forwardRef<
       style,
       poster: {
         title: deriveTitle(game),
-        subtitle: [
-          deriveOpeningName(game) || tags.ECO?.trim(),
-          tags.TimeControl?.trim() ? `${tags.TimeControl}s` : "",
-        ]
+        subtitle: [deriveOpeningName(game) || tags.ECO?.trim(), tags.TimeControl?.trim() ? `${tags.TimeControl}s` : ""]
           .filter(Boolean)
           .join(" • "),
         white,
@@ -210,7 +212,7 @@ export const ChessArtCanvas = forwardRef<
         squareSize,
         styleRef.current,
         tokens,
-        progress,
+        progress
       );
 
       if (progress < 1) {
@@ -296,8 +298,8 @@ export const ChessArtCanvas = forwardRef<
 
   return (
     <div className="relative">
-      <div className="absolute -inset-10 -z-10 rounded-[36px] bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.08),rgba(0,0,0,0))] blur-xl dark:bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.28),rgba(0,0,0,0))]" />
-      <div className="relative flex items-center justify-center rounded-2xl border border-black/[0.08] bg-black/5 p-3 shadow-sm dark:border-white/10 dark:bg-black/20 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.55)]">
+      <div className="absolute -inset-10 -z-10 rounded-[36px] bg-[radial-gradient(50%_50%_at_50%_30%,rgba(99,102,241,0.04),rgba(0,0,0,0))] blur-xl dark:bg-[radial-gradient(70%_70%_at_50%_30%,rgba(99,102,241,0.28),rgba(0,0,0,0))]" />
+      <div className="relative flex items-center justify-center rounded-2xl border border-black/[0.06] bg-black/[0.03] p-3 dark:border-white/10 dark:bg-black/20 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_64px_rgba(0,0,0,0.55)]">
         <canvas
           ref={canvasRef}
           width={width}
@@ -308,8 +310,7 @@ export const ChessArtCanvas = forwardRef<
         <div
           className="pointer-events-none absolute inset-3 rounded-xl"
           style={{
-            background:
-              "radial-gradient(ellipse 88% 88% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%)",
+            background: "radial-gradient(ellipse 88% 88% at 50% 50%, transparent 60%, rgba(0,0,0,0.18) 100%)",
           }}
         />
       </div>
